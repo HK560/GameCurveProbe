@@ -1,320 +1,320 @@
-# GameCurveProbe 用户手册
+# GameCurveProbe User Guide
 
-## 1. 工具当前能做什么
+## 1. What the Tool Can Do Right Now
 
-当前版本最适合做这几件事：
+The current version is best suited for these tasks:
 
-- 选择一个游戏窗口并实时预览画面
-- 手动框选一个用于追踪的 ROI 区域
-- 观察 ROI 的实时水平/垂直像素速度
-- 运行真实 steady 扫描并导出当前会话结果
-- 通过本地 HTTP IPC 从外部进程控制基础流程
+- Select a game window and preview its image in real time
+- Manually draw an ROI area for tracking
+- Observe the real-time horizontal and vertical pixel speed of the ROI
+- Run an actual steady scan and export the current session results
+- Control the basic workflow from an external process through local HTTP IPC
 
-当前版本还不能做的事：
+What the current version cannot do yet:
 
-- 自动识别最佳追踪区域
+- Automatically detect the best tracking region
 
-所以当前版本更准确地说，是“steady 真实测量 + ROI 追踪 + 会话框架”已经可用，但动态响应、更多轴向和更完整校准还在继续实现。
+So the most accurate description of the current state is that "real steady measurement + ROI tracking + session framework" is already usable, while dynamic response, more axis coverage, and more complete calibration are still in progress.
 
-## 2. 如何运行
+## 2. How to Run It
 
-### 2.1 安装依赖
+### 2.1 Install Dependencies
 
-在项目根目录执行：
+Run this in the project root:
 
 ```powershell
 uv sync --extra capture --extra controller
 ```
 
-如果要启用手柄控制后端，请先安装 Windows 的 `ViGEmBus` 驱动，并确保环境里会安装到 `vgamepad` 依赖。
+If you want to enable the controller backend, install the Windows `ViGEmBus` driver first and make sure your environment includes the `vgamepad` dependency.
 
-如果 `uv` 默认缓存目录不可写，可以改为：
+If the default `uv` cache directory is not writable, you can use:
 
 ```powershell
 $env:UV_CACHE_DIR='d:\Github\GameCurveProbe\.uv-cache'
 uv sync --extra capture --extra controller
 ```
 
-### 2.2 启动 GUI
+### 2.2 Launch the GUI
 
 ```powershell
 uv run gamecurveprobe
 ```
 
-### 2.3 启动 IPC-only 模式
+### 2.3 Launch IPC-Only Mode
 
 ```powershell
 uv run gamecurveprobe --ipc-only
 ```
 
-默认监听地址：
+Default listen address:
 
 ```text
 http://127.0.0.1:48231
 ```
 
-## 3. 如何做一次检测
+## 3. How to Run a Measurement
 
-### 3.1 准备游戏环境
+### 3.1 Prepare the Game Environment
 
-为了让 ROI 追踪更稳定，建议：
+To make ROI tracking more stable, it is recommended to:
 
-- 使用窗口化或无边框模式
-- 保持目标窗口在主显示器上
-- 尽量关闭强动态模糊
-- 尽量关闭镜头平滑、辅助瞄准、额外插帧
-- 选择有明显对比纹理的静态场景
-- 测试过程中尽量保持人物位置和视角高度不变
+- Use windowed or borderless mode
+- Keep the target window on the primary monitor
+- Disable strong motion blur if possible
+- Disable camera smoothing, aim assist, and extra frame interpolation if possible
+- Choose a static scene with strong texture contrast
+- Keep the character position and camera height as consistent as possible during testing
 
-### 3.2 选择目标窗口
+### 3.2 Select the Target Window
 
-启动程序后，在左侧 `Environment` 区域：
+After launching the program, use the `Environment` section on the left:
 
-1. 在 `Target window` 下拉框选择游戏窗口。
-2. 如果窗口列表没有更新，点击 `Refresh Windows`。
-3. 选中后，`Capture status` 应显示已附加到该窗口。
+1. Select the game window from the `Target window` dropdown.
+2. If the window list is outdated, click `Refresh Windows`.
+3. After selection, `Capture status` should show that the tool is attached to that window.
 
-如果提示窗口尺寸无效，常见原因有：
+If you see an invalid window size warning, common causes include:
 
-- 游戏最小化了
-- 游戏不在主显示器
-- 当前窗口坐标超出主显示器边界
+- The game is minimized
+- The game is not on the primary monitor
+- The current window coordinates extend outside the primary monitor bounds
 
-### 3.3 观察实时预览
+### 3.3 Watch the Live Preview
 
-右侧 `Preview & ROI` 区域会显示实时画面。
+The `Preview & ROI` section on the right shows the live image.
 
-如果看到的是空白提示而不是画面，先检查：
+If you see a blank placeholder instead of the image, check:
 
-- 目标窗口是否仍然可见
-- 是否被最小化
-- 是否被遮挡或移动到了其他显示器
+- Whether the target window is still visible
+- Whether it has been minimized
+- Whether it is covered by another window or moved to a different display
 
-### 3.4 框选 ROI
+### 3.4 Draw the ROI
 
-在实时画面上用鼠标左键拖拽，框选一块高对比、容易追踪的区域。
+Use the left mouse button to drag a high-contrast, easy-to-track region in the live preview.
 
-建议 ROI 满足这些条件：
+Recommended ROI characteristics:
 
-- 有明显边缘或纹理
-- 不要只框一块纯色天空/墙面
-- 不要太小，建议至少 80x80 像素以上
-- 尽量选靠近屏幕中央但不被 UI 遮挡的区域
-- 避开血条、准星闪烁、动态 UI、字幕
+- Clear edges or visible texture
+- Avoid selecting a flat sky or plain wall
+- Do not make it too small; at least 80x80 pixels is recommended
+- Prefer a region near the center of the screen that is not blocked by UI
+- Avoid health bars, flashing crosshairs, dynamic UI, and subtitles
 
-框选完成后：
+After the ROI is selected:
 
-- 预览画面会显示 ROI 矩形框
-- `Motion` 区域会开始显示 `vx / vy / pts / conf`
+- The preview will show the ROI rectangle
+- The `Motion` section will start showing `vx / vy / pts / conf`
 
-字段含义：
+Field meanings:
 
 - `vx`
-  ROI 水平像素速度，单位 `px/s`
+  Horizontal pixel speed of the ROI, in `px/s`
 - `vy`
-  ROI 垂直像素速度，单位 `px/s`
+  Vertical pixel speed of the ROI, in `px/s`
 - `pts`
-  当前被稳定跟踪的特征点数量
+  Number of feature points that are currently being tracked stably
 - `conf`
-  当前估计置信度，越接近 `1.0` 越稳定
+  Current estimation confidence; values closer to `1.0` are more stable
 
-### 3.5 读取检测结果
+### 3.5 Read the Measurement Result
 
-当前版本里，实时预览区的 `Motion` 是最接近真实检测值的部分。
+In the current version, the `Motion` readout in the live preview is the closest thing to the actual measurement result.
 
-你可以这样理解它：
+You can think of it like this:
 
-- 如果你手动转动游戏镜头，`vx` 和 `vy` 会反映画面中 ROI 的移动速度
-- 如果未来虚拟手柄接入后，工具就会把“某个固定输入值下的速度”采样下来，进而生成真正的输入曲线
+- If you rotate the in-game camera manually, `vx` and `vy` reflect the movement speed of the ROI in the image
+- Once a virtual controller backend is fully integrated, the tool will sample the speed at a fixed input value and then generate a real input curve
 
-`Curve Preview` 区域显示的是更贴近手柄驱动编辑器的推荐半轴曲线：
+The `Curve Preview` section shows a recommended half-axis curve that better matches controller driver editors:
 
-- 横轴固定为输入百分比 `0..100`
-- 纵轴固定为输出百分比 `0..100`
-- 预览里的曲线形状更适合直接对照驱动里的摇杆曲线设置
+- The horizontal axis is fixed to input percentage `0..100`
+- The vertical axis is fixed to output percentage `0..100`
+- The previewed curve shape is designed to map more directly to stick curve settings in a controller driver
 
-### 3.6 运行当前动作按钮
+### 3.6 Use the Current Action Buttons
 
-当前按钮行为如下：
+Current button behavior:
 
 - `Calibrate Yaw 360`
-  当前对外测试版默认禁用，按钮置灰，不会启动标定流程
+  Disabled by default in the public test build. The button is grayed out and does not start the calibration flow.
 - `Run Steady`
-  当前会在后台执行真实的稳态扫描流程，优先针对单显示器无边框窗口；每个点会输出质量标签、逐点诊断信息，并在低稳定度时自动重测一次
+  Runs the real steady scan in the background. It is currently optimized for a single-monitor borderless window setup. Each point reports quality labels and per-point diagnostics, and points with low stability are automatically retried once.
 - `Run Dynamic`
-  当前对外测试版默认禁用，按钮置灰，不会启动动态流程
+  Disabled by default in the public test build. The button is grayed out and does not start the dynamic flow.
 - `Cancel`
-  取消当前会话状态
+  Cancels the current session state.
 - `Clear ROI`
-  清除当前 ROI，并重置实时运动估计
+  Clears the current ROI and resets the live motion estimation.
 - `Export CSV`
-  导出当前会话结果
+  Exports the current session results.
 
-当前还支持 3 个全局快捷键，即使窗口缩小后也能触发：
+The tool also supports 3 global hotkeys that work even when the window is minimized:
 
 - `F8`
-  启动 `Run Steady`
+  Start `Run Steady`
 - `F9`
-  取消当前会话
+  Cancel the current session
 - `F10`
-  导出当前结果
+  Export the current results
 
-检测开始、完成、失败、取消和导出成功时，程序会同时更新 GUI 状态，并发送系统通知。
+When a measurement starts, finishes, fails, is canceled, or exports successfully, the program updates the GUI state and sends a system notification.
 
-## 4. 如何设置参数
+## 4. How to Configure Parameters
 
-左侧 `Probe Parameters` 面板中的参数作用如下。
+The parameters in the `Probe Parameters` panel on the left work as follows.
 
 ### 4.1 Capture FPS
 
-表示 steady 采集链路请求的目标采样率，同时也会影响 GUI 预览刷新频率。
+This is the requested target sampling rate for the steady capture pipeline, and it also affects the GUI preview refresh rate.
 
-建议：
+Recommendations:
 
-- 普通调试可用 `60`
-- 追求更平滑的实时观察可用 `120`
-- 如果机器压力较大，先降到 `30` 或 `60`
+- `60` for normal debugging
+- `120` if you want smoother real-time observation
+- `30` or `60` first if the machine is under heavy load
 
-注意：
+Notes:
 
-- steady 会把这个值传给 `dxcam` 显示器采集后端
-- GUI 预览内部仍会限制到适合实时刷新的频率
+- The steady workflow passes this value to the `dxcam` monitor capture backend
+- The GUI preview still applies its own refresh limit suitable for live rendering
 
 ### 4.2 Points / half-axis
 
-表示每个半轴预计扫描多少个输入点。
+This controls how many input points are scanned per half axis.
 
-当前版本里它会影响两部分：
+In the current version it affects two things:
 
-- 原始 `x` 轴正方向测量点数量
-- 最终导出的单半轴驱动曲线密度
+- The number of raw measurement points on the positive `x` axis
+- The density of the exported controller-driver half-axis curve
 
-建议：
+Recommendations:
 
-- 快速预览：`9`
-- 常规测试：`17`
-- 高密度测试：`33` 或更高
+- Quick preview: `9`
+- Standard test: `17`
+- High-density test: `33` or more
 
 ### 4.3 Settle (ms)
 
-表示切换到一个输入点之后，等待系统稳定的时间。
+This is how long the tool waits after switching to a new input point before treating the system as stable.
 
-未来真实测量时，它会影响：
+In future real measurements, it affects:
 
-- 是否避开起始加速段
-- 是否只测稳态速度
+- Whether the tool avoids the initial acceleration segment
+- Whether the tool samples only the steady-state speed
 
-建议：
+Recommendations:
 
-- 快速游戏：`200-300`
-- 有明显镜头平滑的游戏：`400-800`
+- Fast games: `200-300`
+- Games with obvious camera smoothing: `400-800`
 
 ### 4.4 Steady Sample (ms)
 
-表示 `Run Steady` 在每个点稳定后实际采样的时长。
+This is the actual sampling duration used by `Run Steady` after each point has stabilized.
 
-建议：
+Recommendations:
 
-- 粗略测试：`300-500`
-- 常规测试：`700-1000`
-- 高稳定要求：`1000+`
+- Rough test: `300-500`
+- Standard test: `700-1000`
+- High-stability requirement: `1000+`
 
 ### 4.5 Yaw360 Timeout (ms)
 
-表示 `Calibrate Yaw 360` 的预留参数。当前对外测试版里该按钮默认禁用，所以这个参数暂时不会参与实际执行。
+This is a reserved parameter for `Calibrate Yaw 360`. In the current public test build that button is disabled by default, so this parameter does not participate in actual execution yet.
 
-建议：
+Recommendations:
 
-- 高灵敏度快速验证：`2000-3000`
-- 常规测试：`4000-6000`
-- 低灵敏度或慢镜头游戏：`6000+`
+- Quick validation at high sensitivity: `2000-3000`
+- Standard test: `4000-6000`
+- Low sensitivity or slow-camera games: `6000+`
 
 ### 4.6 Repeats
 
-表示每个点重复采样次数。
+This is the number of repeated samples for each point.
 
-建议：
+Recommendations:
 
-- 快速测试：`1`
-- 常规测试：`2`
-- 需要对比波动：`3-5`
+- Quick test: `1`
+- Standard test: `2`
+- To compare variance: `3-5`
 
 ### 4.7 Inner deadzone
 
-用于标记内部死区位置。
+This marks the inner deadzone position.
 
-当前版本里它会直接影响默认测量点的起始输入值，同时也会影响预览曲线形状；未来还会用于：
+In the current version it directly affects the starting input value of the default measurement points and also changes the preview curve shape. In the future it will also be used to:
 
-- 显示估计死区
-- 辅助分析输入曲线起始段
+- Display the estimated deadzone
+- Help analyze the beginning segment of the input curve
 
 ### 4.8 Outer saturation
 
-用于标记外部饱和值位置。
+This marks the outer saturation position.
 
-当前版本里它会直接影响默认测量点的终止输入值，同时也会影响预览曲线形状；未来还会用于：
+In the current version it directly affects the ending input value of the default measurement points and also changes the preview curve shape. In the future it will also be used to:
 
-- 显示曲线什么时候进入饱和
-- 辅助判断游戏是否对外圈做了压缩
+- Show when the curve enters saturation
+- Help analyze whether the game compresses the outer input range
 
 ### 4.9 Enable dynamic response run
 
-表示未来是否启用动态响应测试。
+This indicates whether dynamic response testing will be enabled in the future.
 
-当前对外测试版中该项会保持禁用，仅作为后续功能预留。
+In the current public test build, this option remains disabled and is reserved for future work.
 
 ### 4.10 Live preview during tests
 
-表示在执行 `Run Steady`、`Calibrate Idle Noise` 时，是否继续把实时预览画面和实时 motion 数据推送到 GUI。等 `Calibrate Yaw 360` 重新开放后，它也会遵循同一规则。
+This controls whether the live preview image and live motion data continue to update in the GUI while `Run Steady` or `Calibrate Idle Noise` is running. Once `Calibrate Yaw 360` is reopened, it will follow the same rule.
 
-默认值：关闭。
+Default value: off.
 
-建议：
+Recommendations:
 
-- 想减少测量干扰、降低 GUI 额外开销：保持关闭
-- 想在测试过程中继续观察画面变化：手动开启
+- Keep it off if you want to reduce measurement interference and lower GUI overhead
+- Turn it on manually if you want to keep watching the image during the test
 
-关闭时：
+When it is off:
 
-- 测量执行期间右侧实时画面会暂停
-- 实时 `vx / vy / pts / conf` 也会暂停更新
-- 任务结束、失败或取消后会自动恢复实时预览
+- The live image on the right pauses during measurement execution
+- Real-time `vx / vy / pts / conf` updates also pause
+- Live preview resumes automatically after the task finishes, fails, or is canceled
 
-## 5. 如何导出结果
+## 5. How to Export Results
 
-点击 `Export CSV` 后，程序会导出四个文件：
+After clicking `Export CSV`, the program exports four files:
 
 - `raw_samples.csv`
 - `curve_summary.csv`
 - `session_meta.json`
 - `controller_meta_curve.cmcurves.json`
 
-当前版本里：
+In the current version:
 
 - `raw_samples.csv`
-  记录当前会话中的 `x` 轴正方向原始测量点。对外测试版里主要来自 `Run Steady`；每一行还会带上 `measurement_kind`，用于区分来源
+  Records the raw measurement points on the positive `x` axis for the current session. In the public test build these mainly come from `Run Steady`, and each row also includes `measurement_kind` so you can distinguish the source.
 - `curve_summary.csv`
-  记录推荐录入手柄驱动的 `x` 轴正半轴曲线点，坐标语义为 `0..100 -> 0..100`，并同样保留 `measurement_kind`
+  Records the recommended positive half-axis curve points for a controller driver, using `0..100 -> 0..100` coordinates, and also preserves `measurement_kind`.
 - `session_meta.json`
-  保存当前配置、状态、原始结果，以及转换后的驱动曲线结果；`y_curve` 当前保持空列表。结果对象里会额外记录 `measurement_kind`、`summary`、`metadata`，其中 `metadata` 会包含 `capture_fps_requested`、`retry_used_points` 和逐点 `point_diagnostics`
+  Stores the current configuration, status, raw results, and converted driver-curve results. `y_curve` is currently an empty list. The result object also records `measurement_kind`, `summary`, and `metadata`, where `metadata` includes `capture_fps_requested`, `retry_used_points`, and per-point `point_diagnostics`.
 - `controller_meta_curve.cmcurves.json`
-  额外导出一个兼容 ControllerMeta 曲线工具 JSON 导入格式的 `curve_transfer` 包；当前默认把 `x_curve` 的正半轴推荐曲线转换为 `polyline`，可直接用于目标工具导入
+  Exports an additional `curve_transfer` package compatible with the JSON import format used by the ControllerMeta curve tool. By default, the recommended positive half-axis curve from `x_curve` is converted into a `polyline` that can be imported directly into the target tool.
 
-## 6. 如何通过 IPC 控制
+## 6. How to Control It Through IPC
 
-### 6.1 查看服务状态
+### 6.1 Check Service Health
 
 ```powershell
 Invoke-RestMethod -Uri 'http://127.0.0.1:48231/health'
 ```
 
-### 6.2 列出窗口
+### 6.2 List Windows
 
 ```powershell
 Invoke-RestMethod -Uri 'http://127.0.0.1:48231/windows'
 ```
 
-### 6.3 创建会话
+### 6.3 Create a Session
 
 ```powershell
 $session = Invoke-RestMethod `
@@ -324,7 +324,7 @@ $session = Invoke-RestMethod `
   -Body '{"capture_fps":120,"point_count_per_half_axis":17}'
 ```
 
-### 6.4 更新 ROI
+### 6.4 Update the ROI
 
 ```powershell
 Invoke-RestMethod `
@@ -334,7 +334,7 @@ Invoke-RestMethod `
   -Body '{"x":200,"y":180,"width":240,"height":160}'
 ```
 
-### 6.5 运行稳态流程
+### 6.5 Run the Steady Workflow
 
 ```powershell
 Invoke-RestMethod `
@@ -344,7 +344,7 @@ Invoke-RestMethod `
   -Body '{}'
 ```
 
-### 6.6 导出结果
+### 6.6 Export Results
 
 ```powershell
 Invoke-RestMethod `
@@ -354,36 +354,36 @@ Invoke-RestMethod `
   -Body (@{ output_dir = '.\\gcp-export' } | ConvertTo-Json)
 ```
 
-说明：
+Notes:
 
 - `POST /session/{id}/calibrate/yaw360`
-  当前对外测试版会返回 `409`，表示该功能暂未开放
+  Returns `409` in the current public test build, which means the feature is not open yet.
 - `POST /session/{id}/run/dynamic`
-  当前对外测试版会返回 `409`，表示该功能暂未开放
+  Returns `409` in the current public test build, which means the feature is not open yet.
 
-## 7. 检测时的建议
+## 7. Recommendations During Testing
 
-如果你想尽量让未来测得的曲线更靠谱，建议从一开始就养成这些操作习惯：
+If you want future measurements to be as reliable as possible, it helps to build these habits early:
 
-- 测试前固定游戏灵敏度，不中途修改
-- 每个游戏建立单独的测试配置和导出目录
-- 优先选横向纹理明显的 ROI 来看 `X / yaw`
-- 同一组设置重复做 2 到 3 次，观察结果波动
-- 避免角色位移、后坐力、镜头晃动等干扰
+- Keep the game sensitivity fixed before the test and do not change it halfway through
+- Use a separate test configuration and export directory for each game
+- Prefer ROI regions with clear horizontal texture when observing `X / yaw`
+- Repeat the same setup 2 to 3 times and compare result variance
+- Avoid interference from character movement, recoil, camera shake, and similar effects
 
-## 8. 当前已知限制
+## 8. Current Known Limitations
 
-- steady 目前只优先支持单显示器无边框窗口采集
-- 某些受保护窗口、独占全屏窗口可能无法正常抓取
-- 当前对外测试版中 `Run Dynamic` 默认禁用
-- 当前稳态检测只覆盖 `x` 轴正半轴，不覆盖 `x` 负方向或 `y` 轴
-- 当前对外测试版中 `Calibrate Yaw 360` 默认禁用
+- Steady capture is currently optimized only for single-monitor borderless-window scenarios
+- Some protected windows or exclusive fullscreen windows may not be capturable
+- `Run Dynamic` is disabled by default in the current public test build
+- Steady measurement currently covers only the positive half of the `x` axis, not negative `x` or the `y` axis
+- `Calibrate Yaw 360` is disabled by default in the current public test build
 
-## 9. 下一阶段会补什么
+## 9. What Comes Next
 
-接下来最关键的实现方向是：
+The most important next implementation directions are:
 
-1. 接入真实虚拟手柄后端
-2. 继续完善后台检测、热键与系统通知的稳定性
-3. 继续提升 `x` 轴稳态测量和导出结果质量
-4. 增加真实动态响应测试和更准确的导出字段
+1. Integrate the real virtual-controller backend
+2. Continue improving the stability of background measurement, hotkeys, and system notifications
+3. Continue improving steady `x`-axis measurement quality and export quality
+4. Add real dynamic response testing and more accurate export fields
