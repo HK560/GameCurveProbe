@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gamecurveprobe"
+version = "0.1.0"
+description = "Desktop tool for probing in-game controller response curves."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+  { name = "OpenAI Codex" },
+]
+dependencies = [
+  "numpy>=2.2.0",
+  "opencv-python>=4.11.0.86",
+  "PySide6>=6.8.0",
+]
+
+[project.optional-dependencies]
+capture = [
+  "dxcam>=0.0.6",
+]
+controller = [
+  "vgamepad>=0.1.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.4",
+]
+
+[project.scripts]
+gamecurveprobe = "gamecurveprobe.__main__:main"
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gamecurveprobe"]
