@@ -11,6 +11,7 @@ For more detailed instructions, see:
 - Windows 10/11
 - `uv`
 - `ViGEmBus` must be installed, along with an environment that includes the `vgamepad` dependency
+  Official download: https://github.com/nefarius/ViGEmBus/releases
 - The target game is recommended to run in windowed or borderless mode
 
 ## Installation and Running
@@ -26,6 +27,27 @@ Launch the desktop UI:
 ```powershell
 uv run gamecurveprobe
 ```
+
+## Build A Standalone EXE
+
+Build a Windows standalone executable that does not require Python to be installed on the target machine:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-exe.ps1
+```
+
+After the build completes, the packaged app is written to:
+
+```text
+dist\GameCurveProbe.exe
+```
+
+Notes:
+
+- The packaged `exe` includes the Python runtime and project dependencies, so end users do not need to install Python.
+- The virtual controller feature still depends on the Windows `ViGEmBus` driver. Packaging cannot replace this system-level prerequisite.
+  Official download: https://github.com/nefarius/ViGEmBus/releases
+- The first launch of a PyInstaller `--onefile` build may be slightly slower because it unpacks to a temporary directory before starting.
 
 Start only the local IPC service:
 

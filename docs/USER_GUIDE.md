@@ -28,6 +28,12 @@ uv sync --extra capture --extra controller
 
 If you want to enable the controller backend, install the Windows `ViGEmBus` driver first and make sure your environment includes the `vgamepad` dependency.
 
+Official download address:
+
+```text
+https://github.com/nefarius/ViGEmBus/releases
+```
+
 If the default `uv` cache directory is not writable, you can use:
 
 ```powershell
@@ -47,10 +53,45 @@ uv run gamecurveprobe
 uv run gamecurveprobe --ipc-only
 ```
 
+### 2.4 Run The Packaged EXE
+
+If you already built the standalone package, you can launch it directly without a Python environment:
+
+```powershell
+.\dist\GameCurveProbe.exe
+```
+
+To start IPC-only mode from the packaged build:
+
+```powershell
+.\dist\GameCurveProbe.exe --ipc-only
+```
+
+Important notes:
+
+- The packaged `exe` already contains Python and the required Python dependencies.
+- If you want to use the virtual controller backend, Windows still needs the `ViGEmBus` driver installed separately.
+  Official download: https://github.com/nefarius/ViGEmBus/releases
+- The first launch can be slower than later launches because the one-file bundle unpacks itself to a temporary directory.
+
 Default listen address:
 
 ```text
 http://127.0.0.1:48231
+```
+
+### 2.5 Build The Standalone EXE
+
+From the project root, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-exe.ps1
+```
+
+When the build succeeds, the output file is:
+
+```text
+dist\GameCurveProbe.exe
 ```
 
 ## 3. How to Run a Measurement
