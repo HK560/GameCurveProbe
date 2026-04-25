@@ -178,8 +178,8 @@ The `Curve Preview` section shows a recommended half-axis curve that better matc
 
 Current button behavior:
 
-- `Calibrate Yaw 360`
-  Disabled by default in the public test build. The button is grayed out and does not start the calibration flow.
+- `Calibrate Inner Deadzone`
+  Enters a manual inner-deadzone calibration mode. The tool continuously outputs a small right-stick `X` value and lets you adjust the candidate deadzone in `0.005` steps with global hotkeys while you watch the game image. Press the button again or use `F10` to exit the mode and keep the current value.
 - `Run Steady`
   Runs the real steady scan in the background. It is currently optimized for a single-monitor borderless window setup. Each point reports quality labels and per-point diagnostics, and points with low stability are automatically retried once.
 - `Run Dynamic`
@@ -199,6 +199,15 @@ The tool also supports 3 global hotkeys that work even when the window is minimi
   Cancel the current session
 - `F10`
   Export the current results
+
+During `Calibrate Inner Deadzone`, those same global hotkeys are temporarily remapped:
+
+- `F8`
+  Increase the candidate inner deadzone by `0.005`
+- `F9`
+  Decrease the candidate inner deadzone by `0.005`
+- `F10`
+  Exit inner deadzone calibration and keep the current value
 
 When a measurement starts, finishes, fails, is canceled, or exports successfully, the program updates the GUI state and sends a system notification.
 
@@ -262,7 +271,7 @@ Recommendations:
 
 ### 4.5 Yaw360 Timeout (ms)
 
-This is a reserved parameter for `Calibrate Yaw 360`. In the current public test build that button is disabled by default, so this parameter does not participate in actual execution yet.
+This is a reserved parameter for the older yaw360 calibration workflow. The current desktop UI does not expose that workflow, so this parameter does not participate in normal GUI actions right now.
 
 Recommendations:
 
@@ -285,6 +294,8 @@ Recommendations:
 This marks the inner deadzone position.
 
 The control now provides both a slider and a numeric input field. The numeric field uses the same `0.000-0.995` range as the internal probe config and adjusts in `0.005` steps.
+
+The `Calibrate Inner Deadzone` action uses the current value here as its starting point. Once calibration mode enters, the tool outputs `inner_deadzone + 0.005` on the right-stick `X` axis, then lets you change the candidate value with `F8` and `F9` while watching whether the game camera starts to move. Exiting the mode keeps the current value and writes it back into this control.
 
 In the current version it directly affects the starting input value of the default measurement points and also changes the preview curve shape. In the future it will also be used to:
 
@@ -310,7 +321,7 @@ In the current public test build, this option remains disabled and is reserved f
 
 ### 4.10 Live preview during tests
 
-This controls whether the live preview image and live motion data continue to update in the GUI while `Run Steady` or `Calibrate Idle Noise` is running. Once `Calibrate Yaw 360` is reopened, it will follow the same rule.
+This controls whether the live preview image and live motion data continue to update in the GUI while `Run Steady` or `Calibrate Idle Noise` is running.
 
 Default value: off.
 
@@ -422,7 +433,7 @@ If you want future measurements to be as reliable as possible, it helps to build
 - Some protected windows or exclusive fullscreen windows may not be capturable
 - `Run Dynamic` is disabled by default in the current public test build
 - Steady measurement currently covers only the positive half of the `x` axis, not negative `x` or the `y` axis
-- `Calibrate Yaw 360` is disabled by default in the current public test build
+- `Calibrate Inner Deadzone` is still a manual workflow; it does not auto-detect the correct deadzone for you
 
 ## 9. What Comes Next
 
