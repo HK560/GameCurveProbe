@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from gamecurveprobe.backends.controller import VirtualControllerBackend
 
 
@@ -67,10 +69,20 @@ class InnerDeadzoneCalibrationService:
     def _apply_output(self) -> None:
         try:
             self._controller.set_right_stick(self.current_output, 0.0)
+            self._pulse_left_stick()
         except Exception as exc:
             self._safe_neutral()
             self._active = False
             raise InnerDeadzoneCalibrationError(str(exc)) from exc
+
+    def _pulse_left_stick(self) -> None:
+        """Press and release L3 to keep the game recognizing gamepad input."""
+        try:
+            self._controller.press_left_stick()
+            time.sleep(0.05)
+            self._controller.release_left_stick()
+        except Exception:
+            pass
 
     def _safe_neutral(self) -> None:
         try:

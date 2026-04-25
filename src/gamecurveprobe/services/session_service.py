@@ -246,7 +246,9 @@ class SessionService:
 
     def _build_controller_meta_curve_package(self, session: ProbeSession) -> dict[str, Any]:
         exported_at = datetime.now(UTC).isoformat()
-        points = self._build_controller_meta_points(session.result.x_curve)
+        inner_dz = session.config.inner_deadzone_marker
+        outer_sat = session.config.outer_saturation_marker
+        points = self._build_controller_meta_points(session.result.x_curve, inner_dz, outer_sat)
 
         return {
             "identifier": "ControllerMeta",
@@ -280,20 +282,50 @@ class SessionService:
             ],
         }
 
-    def _build_controller_meta_points(self, curve: list[CurvePoint]) -> list[dict[str, float]]:
-        converted_points = [
-            {
-                "x": round(min(max(point.input_value * 100.0, 0.0), 100.0), 3),
-                "y": round(min(max(point.normalized_speed * 100.0, 0.0), 100.0), 3),
-            }
-            for point in curve
+    def _build_controller_meta_points(
+        self,
+        curve: list[CurvePoint],
+        inner_deadzone: float = 0.0,
+        outer_saturation: float = 1.0,
+    ) -> list[dict[str, float]]:
+        positive_points = [
+            point for point in curve
             if point.axis == "x" and point.direction == "positive"
         ]
+        if not positive_points:
+            return [{"x": 0.0, "y": 0.0}, {"x": 100.0, "y": 100.0}]
+
+        # Determine the actual measured input range for normalization.
+        input_min = inner_deadzone
+        input_max = outer_saturation
+        input_span = input_max - input_min
+
+        # Find the max normalized_speed among measured points to rescale output.
+        max_norm = max((p.normalized_speed for p in positive_points), default=1.0)
+        if max_norm <= 0.0:
+            max_norm = 1.0
+
+        converted_points: list[dict[str, float]] = []
+        for point in positive_points:
+            # Remap input_value from [input_min, input_max] to [0, 100].
+            if input_span > 0.0:
+                x = (point.input_value - input_min) / input_span * 100.0
+            else:
+                x = point.input_value * 100.0
+            # Remap normalized_speed so the max measured value maps to 100.
+            y = point.normalized_speed / max_norm * 100.0
+            converted_points.append({
+                "x": round(min(max(x, 0.0), 100.0), 3),
+                "y": round(min(max(y, 0.0), 100.0), 3),
+            })
+
         converted_points.sort(key=lambda item: item["x"])
 
         points: list[dict[str, float]] = [{"x": 0.0, "y": 0.0}]
         points.extend(item for item in converted_points if 0.0 < item["x"] < 100.0)
-        points.append({"x": 100.0, "y": 100.0})
+        # Use the last measured point's y-value (rescaled) to close at (100, y_max),
+        # which should be (100, 100) after normalization.
+        points.append({"x": 100.0, "y": converted_points[-1]["y"] if converted_points else 100.0})
         return points
 
     def _fail_session(self, session_id: str, message: str, note: str) -> ProbeSession:

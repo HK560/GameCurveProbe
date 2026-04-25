@@ -300,12 +300,12 @@ def test_main_window_applies_parameter_changes_immediately(main_window) -> None:
 def test_main_window_exposes_deadzone_spinboxes_with_half_percent_precision(main_window) -> None:
     window = main_window
 
-    assert window.inner_deadzone_input.decimals() == 3
-    assert window.inner_deadzone_input.singleStep() == pytest.approx(0.005)
+    assert window.inner_deadzone_input.decimals() == 4
+    assert window.inner_deadzone_input.singleStep() == pytest.approx(0.001)
     assert window.inner_deadzone_input.minimum() == pytest.approx(0.0)
     assert window.inner_deadzone_input.maximum() == pytest.approx(0.995)
-    assert window.outer_saturation_input.decimals() == 3
-    assert window.outer_saturation_input.singleStep() == pytest.approx(0.005)
+    assert window.outer_saturation_input.decimals() == 4
+    assert window.outer_saturation_input.singleStep() == pytest.approx(0.001)
     assert window.outer_saturation_input.minimum() == pytest.approx(0.005)
     assert window.outer_saturation_input.maximum() == pytest.approx(1.0)
     assert window.inner_deadzone.value() == 0

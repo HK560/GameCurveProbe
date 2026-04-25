@@ -323,8 +323,8 @@ def test_export_session_writes_controllermeta_curve_json(tmp_path) -> None:
     assert curve["sourceMeta"]["kind"] == "conversion"
     assert curve["points"] == [
         {"x": 0.0, "y": 0.0},
-        {"x": 25.0, "y": 30.0},
-        {"x": 75.0, "y": 80.0},
+        {"x": 25.0, "y": 37.5},
+        {"x": 75.0, "y": 100.0},
         {"x": 100.0, "y": 100.0},
     ]
     assert curve["basePoints"] == curve["points"]

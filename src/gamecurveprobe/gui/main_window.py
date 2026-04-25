@@ -258,8 +258,8 @@ class MainWindow(QMainWindow):
         self.inner_deadzone.setValue(0)
         self.inner_deadzone_input = QDoubleSpinBox()
         self.inner_deadzone_input.setRange(0.0, self._deadzone_tick_to_value(MAX_INNER_DEADZONE_TICK))
-        self.inner_deadzone_input.setDecimals(3)
-        self.inner_deadzone_input.setSingleStep(DEADZONE_STEP)
+        self.inner_deadzone_input.setDecimals(4)
+        self.inner_deadzone_input.setSingleStep(0.001)
         self.inner_deadzone_input.setValue(0.0)
         self.outer_saturation = QSlider(Qt.Orientation.Horizontal)
         self.outer_saturation.setRange(MIN_OUTER_DEADZONE_TICK, DEADZONE_TICK_SCALE)
@@ -269,8 +269,8 @@ class MainWindow(QMainWindow):
             self._deadzone_tick_to_value(MIN_OUTER_DEADZONE_TICK),
             self._deadzone_tick_to_value(DEADZONE_TICK_SCALE),
         )
-        self.outer_saturation_input.setDecimals(3)
-        self.outer_saturation_input.setSingleStep(DEADZONE_STEP)
+        self.outer_saturation_input.setDecimals(4)
+        self.outer_saturation_input.setSingleStep(0.001)
         self.outer_saturation_input.setValue(1.0)
 
         layout.addRow("Capture FPS", self.capture_fps)
@@ -409,13 +409,24 @@ class MainWindow(QMainWindow):
     def _deadzone_value_to_tick(self, value: float) -> int:
         return int(round(value * DEADZONE_TICK_SCALE))
 
-    def _set_deadzone_ticks(self, *, inner_tick: int | None = None, outer_tick: int | None = None) -> None:
+    def _set_deadzone_ticks(
+        self,
+        *,
+        inner_tick: int | None = None,
+        outer_tick: int | None = None,
+        inner_value: float | None = None,
+        outer_value: float | None = None,
+    ) -> None:
         next_inner = self.inner_deadzone.value() if inner_tick is None else max(0, min(inner_tick, MAX_INNER_DEADZONE_TICK))
         next_outer = (
             self.outer_saturation.value()
             if outer_tick is None
             else max(MIN_OUTER_DEADZONE_TICK, min(outer_tick, DEADZONE_TICK_SCALE))
         )
+
+        # Use exact float values when provided (from spinbox), otherwise derive from tick.
+        next_inner_value = inner_value if inner_value is not None else self._deadzone_tick_to_value(next_inner)
+        next_outer_value = outer_value if outer_value is not None else self._deadzone_tick_to_value(next_outer)
 
         if next_inner >= next_outer:
             if inner_tick is not None and outer_tick is None:
@@ -425,14 +436,15 @@ class MainWindow(QMainWindow):
                 next_inner = max(0, next_outer - 1)
             else:
                 next_inner = min(next_inner, next_outer - 1)
+            next_inner_value = self._deadzone_tick_to_value(next_inner)
+            next_outer_value = self._deadzone_tick_to_value(next_outer)
 
-        updates = (
+        for widget, value in (
             (self.inner_deadzone, next_inner),
             (self.outer_saturation, next_outer),
-            (self.inner_deadzone_input, self._deadzone_tick_to_value(next_inner)),
-            (self.outer_saturation_input, self._deadzone_tick_to_value(next_outer)),
-        )
-        for widget, value in updates:
+            (self.inner_deadzone_input, next_inner_value),
+            (self.outer_saturation_input, next_outer_value),
+        ):
             widget.blockSignals(True)
             widget.setValue(value)
             widget.blockSignals(False)
@@ -465,11 +477,11 @@ class MainWindow(QMainWindow):
         self._sync_config_from_ui()
 
     def _on_inner_deadzone_input_changed(self, value: float) -> None:
-        self._set_deadzone_ticks(inner_tick=self._deadzone_value_to_tick(value))
+        self._set_deadzone_ticks(inner_tick=self._deadzone_value_to_tick(value), inner_value=value)
         self._sync_config_from_ui()
 
     def _on_outer_saturation_input_changed(self, value: float) -> None:
-        self._set_deadzone_ticks(outer_tick=self._deadzone_value_to_tick(value))
+        self._set_deadzone_ticks(outer_tick=self._deadzone_value_to_tick(value), outer_value=value)
         self._sync_config_from_ui()
 
     def _on_roi_changed(self, roi: RoiRect) -> None:
@@ -526,8 +538,8 @@ class MainWindow(QMainWindow):
         self._session.config.repeats = self.repeat_count.value()
         self._session.config.dynamic_enabled = self.dynamic_enabled.isChecked()
         self._session.config.push_live_preview_during_run = self.live_preview_during_run.isChecked()
-        self._session.config.inner_deadzone_marker = self._deadzone_tick_to_value(self.inner_deadzone.value())
-        self._session.config.outer_saturation_marker = self._deadzone_tick_to_value(self.outer_saturation.value())
+        self._session.config.inner_deadzone_marker = self.inner_deadzone_input.value()
+        self._session.config.outer_saturation_marker = self.outer_saturation_input.value()
 
     def _refresh_inner_deadzone_calibration_status(self) -> None:
         deadzone = self._inner_deadzone_calibration_service.current_deadzone
