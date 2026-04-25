@@ -38,6 +38,10 @@ from gamecurveprobe.vision.motion_estimator import MotionEstimate, MotionEstimat
 
 YAW360_PREVIEW_DISABLED_MESSAGE = "Yaw 360 calibration is disabled in this preview build."
 DYNAMIC_PREVIEW_DISABLED_MESSAGE = "Dynamic response run is disabled in this preview build."
+DEADZONE_STEP = 0.005
+DEADZONE_TICK_SCALE = int(round(1.0 / DEADZONE_STEP))
+MIN_OUTER_DEADZONE_TICK = 1
+MAX_INNER_DEADZONE_TICK = DEADZONE_TICK_SCALE - 1
 
 
 class MainWindow(QMainWindow):
@@ -242,11 +246,24 @@ class MainWindow(QMainWindow):
         self.live_preview_during_run.setChecked(False)
 
         self.inner_deadzone = QSlider(Qt.Orientation.Horizontal)
-        self.inner_deadzone.setRange(0, 100)
+        self.inner_deadzone.setRange(0, MAX_INNER_DEADZONE_TICK)
         self.inner_deadzone.setValue(0)
+        self.inner_deadzone_input = QDoubleSpinBox()
+        self.inner_deadzone_input.setRange(0.0, self._deadzone_tick_to_value(MAX_INNER_DEADZONE_TICK))
+        self.inner_deadzone_input.setDecimals(3)
+        self.inner_deadzone_input.setSingleStep(DEADZONE_STEP)
+        self.inner_deadzone_input.setValue(0.0)
         self.outer_saturation = QSlider(Qt.Orientation.Horizontal)
-        self.outer_saturation.setRange(1, 100)
-        self.outer_saturation.setValue(100)
+        self.outer_saturation.setRange(MIN_OUTER_DEADZONE_TICK, DEADZONE_TICK_SCALE)
+        self.outer_saturation.setValue(DEADZONE_TICK_SCALE)
+        self.outer_saturation_input = QDoubleSpinBox()
+        self.outer_saturation_input.setRange(
+            self._deadzone_tick_to_value(MIN_OUTER_DEADZONE_TICK),
+            self._deadzone_tick_to_value(DEADZONE_TICK_SCALE),
+        )
+        self.outer_saturation_input.setDecimals(3)
+        self.outer_saturation_input.setSingleStep(DEADZONE_STEP)
+        self.outer_saturation_input.setValue(1.0)
 
         layout.addRow("Capture FPS", self.capture_fps)
         layout.addRow("Points / half-axis", self.point_count)
@@ -257,12 +274,21 @@ class MainWindow(QMainWindow):
         layout.addRow("Min tracked pts", self.min_tracked_points)
         layout.addRow("Min confidence", self.min_confidence)
         layout.addRow("Repeats", self.repeat_count)
-        layout.addRow("Inner deadzone", self.inner_deadzone)
-        layout.addRow("Outer saturation", self.outer_saturation)
+        layout.addRow("Inner deadzone", self._build_deadzone_row(self.inner_deadzone, self.inner_deadzone_input))
+        layout.addRow("Outer saturation", self._build_deadzone_row(self.outer_saturation, self.outer_saturation_input))
         layout.addRow("", self.dynamic_enabled)
         layout.addRow("", self.live_preview_during_run)
         self._bind_parameter_controls()
         return box
+
+    def _build_deadzone_row(self, slider: QSlider, spinbox: QDoubleSpinBox) -> QWidget:
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(8)
+        row_layout.addWidget(slider, stretch=1)
+        row_layout.addWidget(spinbox)
+        return row
 
     def _build_actions_box(self) -> QGroupBox:
         box = QGroupBox("Actions")
@@ -371,6 +397,40 @@ class MainWindow(QMainWindow):
         self._capture_backend.set_target_fps(value)
         self._session.config.capture_fps = value
 
+    def _deadzone_tick_to_value(self, tick: int) -> float:
+        return tick / DEADZONE_TICK_SCALE
+
+    def _deadzone_value_to_tick(self, value: float) -> int:
+        return int(round(value * DEADZONE_TICK_SCALE))
+
+    def _set_deadzone_ticks(self, *, inner_tick: int | None = None, outer_tick: int | None = None) -> None:
+        next_inner = self.inner_deadzone.value() if inner_tick is None else max(0, min(inner_tick, MAX_INNER_DEADZONE_TICK))
+        next_outer = (
+            self.outer_saturation.value()
+            if outer_tick is None
+            else max(MIN_OUTER_DEADZONE_TICK, min(outer_tick, DEADZONE_TICK_SCALE))
+        )
+
+        if next_inner >= next_outer:
+            if inner_tick is not None and outer_tick is None:
+                next_outer = min(DEADZONE_TICK_SCALE, next_inner + 1)
+                next_inner = min(next_inner, next_outer - 1)
+            elif outer_tick is not None and inner_tick is None:
+                next_inner = max(0, next_outer - 1)
+            else:
+                next_inner = min(next_inner, next_outer - 1)
+
+        updates = (
+            (self.inner_deadzone, next_inner),
+            (self.outer_saturation, next_outer),
+            (self.inner_deadzone_input, self._deadzone_tick_to_value(next_inner)),
+            (self.outer_saturation_input, self._deadzone_tick_to_value(next_outer)),
+        )
+        for widget, value in updates:
+            widget.blockSignals(True)
+            widget.setValue(value)
+            widget.blockSignals(False)
+
     def _bind_parameter_controls(self) -> None:
         self.point_count.valueChanged.connect(self._on_parameter_control_changed)
         self.settle_ms.valueChanged.connect(self._on_parameter_control_changed)
@@ -382,10 +442,28 @@ class MainWindow(QMainWindow):
         self.repeat_count.valueChanged.connect(self._on_parameter_control_changed)
         self.dynamic_enabled.toggled.connect(self._on_parameter_control_changed)
         self.live_preview_during_run.toggled.connect(self._on_parameter_control_changed)
-        self.inner_deadzone.valueChanged.connect(self._on_parameter_control_changed)
-        self.outer_saturation.valueChanged.connect(self._on_parameter_control_changed)
+        self.inner_deadzone.valueChanged.connect(self._on_inner_deadzone_slider_changed)
+        self.outer_saturation.valueChanged.connect(self._on_outer_saturation_slider_changed)
+        self.inner_deadzone_input.valueChanged.connect(self._on_inner_deadzone_input_changed)
+        self.outer_saturation_input.valueChanged.connect(self._on_outer_saturation_input_changed)
 
     def _on_parameter_control_changed(self, *_args) -> None:
+        self._sync_config_from_ui()
+
+    def _on_inner_deadzone_slider_changed(self, value: int) -> None:
+        self._set_deadzone_ticks(inner_tick=value)
+        self._sync_config_from_ui()
+
+    def _on_outer_saturation_slider_changed(self, value: int) -> None:
+        self._set_deadzone_ticks(outer_tick=value)
+        self._sync_config_from_ui()
+
+    def _on_inner_deadzone_input_changed(self, value: float) -> None:
+        self._set_deadzone_ticks(inner_tick=self._deadzone_value_to_tick(value))
+        self._sync_config_from_ui()
+
+    def _on_outer_saturation_input_changed(self, value: float) -> None:
+        self._set_deadzone_ticks(outer_tick=self._deadzone_value_to_tick(value))
         self._sync_config_from_ui()
 
     def _on_roi_changed(self, roi: RoiRect) -> None:
@@ -442,8 +520,8 @@ class MainWindow(QMainWindow):
         self._session.config.repeats = self.repeat_count.value()
         self._session.config.dynamic_enabled = self.dynamic_enabled.isChecked()
         self._session.config.push_live_preview_during_run = self.live_preview_during_run.isChecked()
-        self._session.config.inner_deadzone_marker = self.inner_deadzone.value() / 100.0
-        self._session.config.outer_saturation_marker = max(self.outer_saturation.value() / 100.0, 0.01)
+        self._session.config.inner_deadzone_marker = self._deadzone_tick_to_value(self.inner_deadzone.value())
+        self._session.config.outer_saturation_marker = self._deadzone_tick_to_value(self.outer_saturation.value())
 
     def _should_push_live_preview_during_run(self) -> bool:
         return self._session.config.push_live_preview_during_run

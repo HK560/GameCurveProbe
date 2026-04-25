@@ -284,6 +284,8 @@ Recommendations:
 
 This marks the inner deadzone position.
 
+The control now provides both a slider and a numeric input field. The numeric field uses the same `0.000-0.995` range as the internal probe config and adjusts in `0.005` steps.
+
 In the current version it directly affects the starting input value of the default measurement points and also changes the preview curve shape. In the future it will also be used to:
 
 - Display the estimated deadzone
@@ -292,6 +294,8 @@ In the current version it directly affects the starting input value of the defau
 ### 4.8 Outer saturation
 
 This marks the outer saturation position.
+
+The control now provides both a slider and a numeric input field. The numeric field uses the same `0.005-1.000` range as the internal probe config and adjusts in `0.005` steps.
 
 In the current version it directly affects the ending input value of the default measurement points and also changes the preview curve shape. In the future it will also be used to:
 

@@ -258,6 +258,59 @@ def test_main_window_applies_parameter_changes_immediately(main_window) -> None:
     assert window._session.config.motion_min_confidence == 0.55
 
 
+def test_main_window_exposes_deadzone_spinboxes_with_half_percent_precision(main_window) -> None:
+    window = main_window
+
+    assert window.inner_deadzone_input.decimals() == 3
+    assert window.inner_deadzone_input.singleStep() == pytest.approx(0.005)
+    assert window.inner_deadzone_input.minimum() == pytest.approx(0.0)
+    assert window.inner_deadzone_input.maximum() == pytest.approx(0.995)
+    assert window.outer_saturation_input.decimals() == 3
+    assert window.outer_saturation_input.singleStep() == pytest.approx(0.005)
+    assert window.outer_saturation_input.minimum() == pytest.approx(0.005)
+    assert window.outer_saturation_input.maximum() == pytest.approx(1.0)
+    assert window.inner_deadzone.value() == 0
+    assert window.outer_saturation.value() == 200
+
+
+def test_main_window_syncs_deadzone_spinboxes_to_sliders_and_session_config(main_window) -> None:
+    window = main_window
+
+    window.inner_deadzone_input.setValue(0.235)
+    window.outer_saturation_input.setValue(0.875)
+
+    assert window.inner_deadzone.value() == 47
+    assert window.outer_saturation.value() == 175
+    assert window._session.config.inner_deadzone_marker == pytest.approx(0.235)
+    assert window._session.config.outer_saturation_marker == pytest.approx(0.875)
+
+
+def test_main_window_syncs_deadzone_sliders_back_to_spinboxes(main_window) -> None:
+    window = main_window
+
+    window.inner_deadzone.setValue(50)
+    window.outer_saturation.setValue(150)
+
+    assert window.inner_deadzone_input.value() == pytest.approx(0.25)
+    assert window.outer_saturation_input.value() == pytest.approx(0.75)
+
+
+def test_main_window_keeps_deadzone_controls_in_valid_order(main_window) -> None:
+    window = main_window
+
+    window.inner_deadzone_input.setValue(0.995)
+
+    assert window.outer_saturation_input.value() == pytest.approx(1.0)
+    assert window._session.config.inner_deadzone_marker == pytest.approx(0.995)
+    assert window._session.config.outer_saturation_marker == pytest.approx(1.0)
+
+    window.outer_saturation_input.setValue(0.005)
+
+    assert window.inner_deadzone_input.value() == pytest.approx(0.0)
+    assert window._session.config.inner_deadzone_marker == pytest.approx(0.0)
+    assert window._session.config.outer_saturation_marker == pytest.approx(0.005)
+
+
 def test_main_window_uses_large_spinbox_step_button_hit_areas(main_window) -> None:
     window = main_window
     window.show()
