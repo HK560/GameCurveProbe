@@ -7,6 +7,7 @@ import sys
 from gamecurveprobe.backends.controller import VgamepadControllerBackend
 from gamecurveprobe.services.http_server import LocalHttpServer
 from gamecurveprobe.services.idle_noise_calibration_runner import IdleNoiseCalibrationRunner
+from gamecurveprobe.services.inner_deadzone_calibration_service import InnerDeadzoneCalibrationService
 from gamecurveprobe.services.motion_sampler import MotionSampler
 from gamecurveprobe.services.session_service import SessionService
 from gamecurveprobe.services.steady_probe_runner import SteadyProbeRunner
@@ -123,7 +124,13 @@ def main(argv: list[str] | None = None) -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("GameCurveProbe")
-    window = MainWindow(session_service=session_service, window_service=window_service, http_server=http_server)
+    inner_deadzone_calibration_service = InnerDeadzoneCalibrationService(shared_controller)
+    window = MainWindow(
+        session_service=session_service,
+        window_service=window_service,
+        http_server=http_server,
+        inner_deadzone_calibration_service=inner_deadzone_calibration_service,
+    )
     window.show()
     try:
         return app.exec()

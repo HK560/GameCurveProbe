@@ -68,6 +68,38 @@ class FakeWindowService:
         return []
 
 
+class FakeInnerDeadzoneCalibrationService:
+    def __init__(self) -> None:
+        self.is_active = False
+        self.current_deadzone = 0.0
+        self.current_output = 0.005
+        self.calls: list[tuple[str, float] | tuple[str]] = []
+
+    def enter(self, initial_deadzone: float) -> float:
+        self.calls.append(("enter", initial_deadzone))
+        self.is_active = True
+        self.current_deadzone = initial_deadzone
+        self.current_output = round(initial_deadzone + 0.005, 3)
+        return self.current_deadzone
+
+    def increase(self) -> float:
+        self.calls.append(("increase", self.current_deadzone))
+        self.current_deadzone = round(min(0.995, self.current_deadzone + 0.005), 3)
+        self.current_output = round(self.current_deadzone + 0.005, 3)
+        return self.current_deadzone
+
+    def decrease(self) -> float:
+        self.calls.append(("decrease", self.current_deadzone))
+        self.current_deadzone = round(max(0.0, self.current_deadzone - 0.005), 3)
+        self.current_output = round(self.current_deadzone + 0.005, 3)
+        return self.current_deadzone
+
+    def exit(self) -> float:
+        self.calls.append(("exit",))
+        self.is_active = False
+        return self.current_deadzone
+
+
 class FakeSessionService:
     def create_session(self, payload=None):
         from gamecurveprobe.models import ProbeSession, SessionResult
@@ -109,6 +141,7 @@ def main_window():
         session_service=FakeSessionService(),
         window_service=FakeWindowService(),
         http_server=FakeHttpServer(),
+        inner_deadzone_calibration_service=FakeInnerDeadzoneCalibrationService(),
     )
     try:
         yield window
@@ -172,24 +205,30 @@ def test_main_window_moves_calibration_worker_to_background_thread(main_window) 
     assert window._run_worker.thread() is window._run_thread
 
 
-def test_main_window_disables_preview_only_actions(main_window) -> None:
+def test_main_window_exposes_inner_deadzone_calibration_action(main_window) -> None:
     window = main_window
 
-    assert window.calibrate_button.isEnabled() is False
+    assert window.calibrate_button.isEnabled() is True
+    assert window.calibrate_button.text() == "Calibrate Inner Deadzone"
     assert window.dynamic_button.isEnabled() is False
-    assert "preview build" in window.calibrate_button.toolTip().lower()
     assert "preview build" in window.dynamic_button.toolTip().lower()
 
 
-def test_main_window_ignores_manual_calls_to_preview_only_actions(main_window) -> None:
+def test_main_window_enters_inner_deadzone_calibration_mode(main_window) -> None:
     window = main_window
-    window._notifier = FakeNotifier()
+    service = window._inner_deadzone_calibration_service
 
-    window._calibrate()
-    window._run_dynamic()
+    window.inner_deadzone_input.setValue(0.120)
+    window._toggle_inner_deadzone_calibration()
 
-    assert ("GameCurveProbe", "Yaw 360 calibration is disabled in this preview build.") in window._notifier.messages
-    assert ("GameCurveProbe", "Dynamic response run is disabled in this preview build.") in window._notifier.messages
+    assert service.calls == [("enter", 0.12)]
+    assert window.calibrate_button.text() == "Exit Inner Deadzone Calibration"
+    assert window._inner_deadzone_calibration_active is True
+    assert window.steady_button.isEnabled() is False
+    assert window.idle_noise_button.isEnabled() is False
+    assert window.export_button.isEnabled() is False
+    assert window.inner_deadzone_input.isEnabled() is False
+    assert "deadzone=0.120" in window.status_label.text()
 
 
 def test_main_window_pauses_preview_when_steady_measurement_starts_by_default(main_window) -> None:
@@ -345,20 +384,44 @@ def test_main_window_restores_preview_after_run_finish_when_it_was_paused(main_w
     assert window._preview_timer.isActive()
 
 
-def test_main_window_keeps_preview_running_when_yaw360_is_disabled(main_window) -> None:
+def test_main_window_remaps_hotkeys_while_inner_deadzone_calibration_is_active(main_window) -> None:
     window = main_window
-    window._notifier = FakeNotifier()
+    service = window._inner_deadzone_calibration_service
 
-    def fake_create_run_worker(action: str) -> None:
-        window._run_thread = QThread(window)
+    window._toggle_inner_deadzone_calibration()
 
-    window._create_run_worker = fake_create_run_worker  # type: ignore[method-assign]
+    assert window._handle_hotkey(1) is True
+    assert window.inner_deadzone_input.value() == pytest.approx(0.005)
+    assert window._handle_hotkey(2) is True
+    assert window.inner_deadzone_input.value() == pytest.approx(0.0)
+    assert window._handle_hotkey(3) is True
+    assert window._inner_deadzone_calibration_active is False
+    assert ("increase", 0.0) in service.calls
+    assert ("decrease", 0.005) in service.calls
+    assert ("exit",) in service.calls
 
-    window._calibrate()
 
-    assert window._preview_timer.isActive()
-    assert window._run_thread is None
-    assert window._notifier.messages[-1] == ("GameCurveProbe", "Yaw 360 calibration is disabled in this preview build.")
+def test_main_window_writes_calibrated_deadzone_back_on_exit(main_window) -> None:
+    window = main_window
+
+    window._toggle_inner_deadzone_calibration()
+    window._handle_hotkey(1)
+    window._toggle_inner_deadzone_calibration()
+
+    assert window._session.config.inner_deadzone_marker == pytest.approx(0.005)
+    assert window.calibrate_button.text() == "Calibrate Inner Deadzone"
+    assert window.steady_button.isEnabled() is True
+    assert window.inner_deadzone_input.isEnabled() is True
+
+
+def test_main_window_close_event_exits_inner_deadzone_calibration_mode(main_window) -> None:
+    window = main_window
+    service = window._inner_deadzone_calibration_service
+
+    window._toggle_inner_deadzone_calibration()
+    window.close()
+
+    assert ("exit",) in service.calls
 
 
 def test_main_window_pauses_preview_when_idle_noise_starts_by_default(main_window) -> None:

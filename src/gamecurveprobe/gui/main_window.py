@@ -47,16 +47,24 @@ MAX_INNER_DEADZONE_TICK = DEADZONE_TICK_SCALE - 1
 class MainWindow(QMainWindow):
     WM_HOTKEY = 0x0312
 
-    def __init__(self, session_service: SessionService, window_service: WindowService, http_server: LocalHttpServer) -> None:
+    def __init__(
+        self,
+        session_service: SessionService,
+        window_service: WindowService,
+        http_server: LocalHttpServer,
+        inner_deadzone_calibration_service,
+    ) -> None:
         super().__init__()
         self._session_service = session_service
         self._window_service = window_service
         self._http_server = http_server
+        self._inner_deadzone_calibration_service = inner_deadzone_calibration_service
         self._session = self._session_service.create_session()
         self._capture_backend = DxcamCaptureBackend(window_service=window_service)
         self._motion_estimator = MotionEstimator()
         self._latest_motion: MotionEstimate | None = None
         self._is_steady_running = False
+        self._inner_deadzone_calibration_active = False
         self._run_thread: QThread | None = None
         self._run_worker: RunWorker | None = None
         self._hotkey_manager = GlobalHotkeyManager() if hasattr(ctypes, "windll") else None
@@ -294,10 +302,8 @@ class MainWindow(QMainWindow):
         box = QGroupBox("Actions")
         layout = QGridLayout(box)
 
-        self.calibrate_button = QPushButton("Calibrate Yaw 360")
-        self.calibrate_button.clicked.connect(self._calibrate)
-        self.calibrate_button.setEnabled(False)
-        self.calibrate_button.setToolTip(YAW360_PREVIEW_DISABLED_MESSAGE)
+        self.calibrate_button = QPushButton("Calibrate Inner Deadzone")
+        self.calibrate_button.clicked.connect(self._toggle_inner_deadzone_calibration)
         self.idle_noise_button = QPushButton("Calibrate Idle Noise")
         self.idle_noise_button.clicked.connect(self._calibrate_idle_noise)
         self.steady_button = QPushButton("Run Steady")
@@ -523,6 +529,93 @@ class MainWindow(QMainWindow):
         self._session.config.inner_deadzone_marker = self._deadzone_tick_to_value(self.inner_deadzone.value())
         self._session.config.outer_saturation_marker = self._deadzone_tick_to_value(self.outer_saturation.value())
 
+    def _refresh_inner_deadzone_calibration_status(self) -> None:
+        deadzone = self._inner_deadzone_calibration_service.current_deadzone
+        output = self._inner_deadzone_calibration_service.current_output
+        self.status_label.setText(
+            f"calibrating_deadzone: active | deadzone={deadzone:.3f} | "
+            f"output={output:.3f} | F8/F9 adjust | F10 exit"
+        )
+
+    def _set_inner_deadzone_calibration_controls_enabled(self, enabled: bool) -> None:
+        for widget in (
+            self.window_combo,
+            self.refresh_windows_button,
+            self.capture_fps,
+            self.point_count,
+            self.settle_ms,
+            self.steady_sample_ms,
+            self.yaw360_timeout_ms,
+            self.live_smoothing,
+            self.min_tracked_points,
+            self.min_confidence,
+            self.repeat_count,
+            self.inner_deadzone,
+            self.inner_deadzone_input,
+            self.outer_saturation,
+            self.outer_saturation_input,
+            self.dynamic_enabled,
+            self.live_preview_during_run,
+            self.idle_noise_button,
+            self.steady_button,
+            self.dynamic_button,
+            self.cancel_button,
+            self.clear_roi_button,
+            self.export_button,
+            self.preview_widget,
+        ):
+            widget.setEnabled(enabled)
+        self.dynamic_button.setEnabled(False)
+
+    def _restore_inner_deadzone_calibration_ui(self) -> None:
+        self._inner_deadzone_calibration_active = False
+        self.calibrate_button.setText("Calibrate Inner Deadzone")
+        self._set_inner_deadzone_calibration_controls_enabled(True)
+        self._refresh_session_view()
+
+    def _toggle_inner_deadzone_calibration(self) -> None:
+        if self._inner_deadzone_calibration_active:
+            self._exit_inner_deadzone_calibration()
+            return
+        self._enter_inner_deadzone_calibration()
+
+    def _enter_inner_deadzone_calibration(self) -> None:
+        try:
+            value = self._inner_deadzone_calibration_service.enter(self.inner_deadzone_input.value())
+        except Exception as exc:
+            self.status_label.setText(f"calibrating_deadzone: failed | {exc}")
+            self._notify_status(f"Inner deadzone calibration unavailable: {exc}")
+            return
+        self._inner_deadzone_calibration_active = True
+        self._set_inner_deadzone_calibration_controls_enabled(False)
+        self._set_deadzone_ticks(inner_tick=self._deadzone_value_to_tick(value))
+        self.calibrate_button.setText("Exit Inner Deadzone Calibration")
+        self.calibrate_button.setEnabled(True)
+        self._refresh_inner_deadzone_calibration_status()
+        self._notify_status("Inner deadzone calibration started.")
+
+    def _step_inner_deadzone_calibration(self, direction: int) -> None:
+        try:
+            value = (
+                self._inner_deadzone_calibration_service.increase()
+                if direction > 0
+                else self._inner_deadzone_calibration_service.decrease()
+            )
+        except Exception as exc:
+            self.status_label.setText(f"calibrating_deadzone: failed | {exc}")
+            self._notify_status(f"Inner deadzone calibration stopped: {exc}")
+            self._restore_inner_deadzone_calibration_ui()
+            return
+        self._set_deadzone_ticks(inner_tick=self._deadzone_value_to_tick(value))
+        self._refresh_inner_deadzone_calibration_status()
+
+    def _exit_inner_deadzone_calibration(self) -> None:
+        value = self._inner_deadzone_calibration_service.exit()
+        self._set_deadzone_ticks(inner_tick=self._deadzone_value_to_tick(value))
+        self._sync_config_from_ui()
+        self._restore_inner_deadzone_calibration_ui()
+        self._notify_status("Inner deadzone calibration finished.")
+
     def _should_push_live_preview_during_run(self) -> bool:
         return self._session.config.push_live_preview_during_run
 
@@ -687,11 +780,11 @@ class MainWindow(QMainWindow):
             self._run_thread = None
 
     def _set_steady_controls_enabled(self, enabled: bool) -> None:
-        self.calibrate_button.setEnabled(False)
-        self.idle_noise_button.setEnabled(enabled)
-        self.steady_button.setEnabled(enabled)
+        self.calibrate_button.setEnabled(enabled and not self._inner_deadzone_calibration_active)
+        self.idle_noise_button.setEnabled(enabled and not self._inner_deadzone_calibration_active)
+        self.steady_button.setEnabled(enabled and not self._inner_deadzone_calibration_active)
         self.dynamic_button.setEnabled(False)
-        self.cancel_button.setEnabled(True)
+        self.cancel_button.setEnabled(not self._inner_deadzone_calibration_active)
 
     def _apply_noise_floor(self, value: float, floor: float) -> float:
         if value > 0:
@@ -723,6 +816,16 @@ class MainWindow(QMainWindow):
             self._notify_status(f"Failed to register global hotkeys: {', '.join(result.failures)}.")
 
     def _handle_hotkey(self, hotkey_id: int) -> bool:
+        if self._inner_deadzone_calibration_active:
+            if hotkey_id == 1:
+                self._step_inner_deadzone_calibration(1)
+                return True
+            if hotkey_id == 2:
+                self._step_inner_deadzone_calibration(-1)
+                return True
+            if hotkey_id == 3:
+                self._exit_inner_deadzone_calibration()
+                return True
         if hotkey_id == 1:
             self._start_steady_run()
             return True
@@ -742,6 +845,8 @@ class MainWindow(QMainWindow):
         return super().nativeEvent(event_type, message)
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        if self._inner_deadzone_calibration_active:
+            self._exit_inner_deadzone_calibration()
         self._preview_timer.stop()
         if self._run_thread is not None:
             self._run_thread.quit()
