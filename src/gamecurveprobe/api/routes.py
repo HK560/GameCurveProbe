@@ -21,7 +21,7 @@ from gamecurveprobe.api.schemas import (
 )
 from gamecurveprobe.context import AppContext
 from gamecurveprobe.errors import DomainError
-from gamecurveprobe.models import RoiRect
+from gamecurveprobe.models import RoiRect, SessionResult
 from gamecurveprobe.vision.curve_classifier import classify_curve
 from gamecurveprobe.vision.roi_analyzer import RoiAnalyzer
 
@@ -45,7 +45,7 @@ def list_windows(context: AppContext = Depends(get_context)) -> dict[str, Any]:
             {
                 "id": w.window_id,
                 "title": w.title,
-                "pid": w.pid,
+                "pid": getattr(w, "pid", None),
                 "width": w.rect[2] - w.rect[0] if w.rect else 0,
                 "height": w.rect[3] - w.rect[1] if w.rect else 0,
             }
