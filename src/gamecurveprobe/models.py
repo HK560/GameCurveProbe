@@ -71,6 +71,7 @@ class ProbeConfig:
     sound_enabled: bool = True
     wake_input: str = "right_stick"
     auto_wake: bool = True
+    start_countdown_s: int = 5
 
     @classmethod
     def from_preset(cls, name: str) -> "ProbeConfig":

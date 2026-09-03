@@ -79,7 +79,7 @@ def test_runner_keeps_invalid_point_without_faking_zero() -> None:
 def test_runner_neutralizes_when_canceled_during_settle() -> None:
     backend = StubControllerBackend()
     controller = ControllerService(backend)
-    config = ProbeConfig(point_count=5, repeats=1)
+    config = ProbeConfig(point_count=5, repeats=1, start_countdown_s=0)
     cancel = threading.Event()
     runner = MeasurementRunner(
         controller=controller,

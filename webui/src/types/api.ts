@@ -28,6 +28,7 @@ export interface ProbeConfig {
   sound_enabled?: boolean
   wake_input?: string
   auto_wake?: boolean
+  start_countdown_s?: number
 }
 
 export interface RoiRect {

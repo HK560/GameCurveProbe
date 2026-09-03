@@ -10,6 +10,7 @@ import CaptureStep from './components/CaptureStep.vue'
 import DeadzoneStep from './components/DeadzoneStep.vue'
 import MeasurementStep from './components/MeasurementStep.vue'
 import HotkeySettingsModal from './components/HotkeySettingsModal.vue'
+import CountdownModal from './components/CountdownModal.vue'
 const AnalysisStep = defineAsyncComponent(() => import('./components/AnalysisStep.vue'))
 import { 
   Monitor, 
@@ -352,5 +353,8 @@ onUnmounted(() => {
       :show="showHotkeyModal"
       @close="showHotkeyModal = false"
     />
+
+    <!-- Measurement Countdown Modal -->
+    <CountdownModal />
   </div>
 </template>
