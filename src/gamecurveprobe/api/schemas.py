@@ -43,6 +43,10 @@ class ConfigUpdateRequest(StrictDto):
     range_mode: RangeMode | None = None
     inner_deadzone: float | None = Field(default=None, ge=0.0, le=1.0)
     outer_deadzone: float | None = Field(default=None, ge=0.0, le=1.0)
+    hotkey_enabled: bool | None = None
+    hotkey_start: str | None = None
+    hotkey_stop: str | None = None
+    sound_enabled: bool | None = None
 
 
 class DeadzoneRequest(StrictDto):
@@ -62,6 +66,18 @@ class ProbeUpdateRequest(StrictDto):
 
 class JobStartRequest(StrictDto):
     range_mode: RangeMode | None = None
+
+
+class ControllerStateRequest(StrictDto):
+    enabled: bool
+
+
+class ControllerWakeRequest(StrictDto):
+    input: Literal["right_stick", "x", "y", "a", "b", "left_bumper", "right_bumper", "left_trigger", "right_trigger"]
+
+
+class AudioTestRequest(StrictDto):
+    sound_type: Literal["start", "stop", "complete", "test"] = "test"
 
 
 class WindowItem(BaseModel):
@@ -114,3 +130,4 @@ class ErrorResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     controller_ready: bool = True
+    controller_enabled: bool = True

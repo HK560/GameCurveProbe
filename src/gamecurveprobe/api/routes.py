@@ -9,8 +9,11 @@ from fastapi.responses import StreamingResponse
 
 from gamecurveprobe.api.auth import require_token, verify_origin
 from gamecurveprobe.api.schemas import (
+    AudioTestRequest,
     CaptureAttachRequest,
     ConfigUpdateRequest,
+    ControllerStateRequest,
+    ControllerWakeRequest,
     DeadzoneRequest,
     HealthResponse,
     JobResponse,
@@ -36,7 +39,28 @@ def get_context(request: Request) -> AppContext:
 
 @router.get("/health", response_model=HealthResponse)
 def health(context: AppContext = Depends(get_context)) -> dict[str, Any]:
-    return {"status": "ok", "controller_ready": context.controller.is_available()}
+    return {
+        "status": "ok",
+        "controller_ready": context.controller.is_available(),
+        "controller_enabled": context.controller.is_enabled(),
+    }
+
+
+@router.get("/controller", dependencies=[Depends(verify_origin), Depends(require_token)])
+def get_controller_state(context: AppContext = Depends(get_context)) -> dict[str, bool]:
+    return {"enabled": context.controller.is_enabled(), "available": context.controller.is_available()}
+
+
+@router.put("/controller", dependencies=[Depends(verify_origin), Depends(require_token)])
+def update_controller_state(req: ControllerStateRequest, context: AppContext = Depends(get_context)) -> dict[str, bool]:
+    enabled = context.controller.set_enabled(req.enabled)
+    return {"enabled": enabled, "available": context.controller.is_available()}
+
+
+@router.post("/controller/wake", dependencies=[Depends(verify_origin), Depends(require_token)])
+def wake_controller(req: ControllerWakeRequest, context: AppContext = Depends(get_context)) -> dict[str, str]:
+    context.controller.wake(req.input)
+    return {"input": req.input, "duration": "0.5s"}
 
 
 @router.post("/app/quit", dependencies=[Depends(verify_origin), Depends(require_token)])
@@ -102,7 +126,14 @@ def get_session(context: AppContext = Depends(get_context)) -> Any:
 def update_config(req: ConfigUpdateRequest, context: AppContext = Depends(get_context)) -> Any:
     payload = {k: v for k, v in req.model_dump().items() if v is not None}
     context.session.update_config(payload)
-    context.events.publish("config_updated", {"config": context.session.config_snapshot()})
+    cfg = context.session.config_snapshot()
+    if context.hotkey is not None:
+        context.hotkey.update_config(cfg.hotkey_enabled, cfg.hotkey_start, cfg.hotkey_stop)
+    if context.audio is not None:
+        context.audio.enabled = cfg.sound_enabled
+    context.events.publish("config_updated", {"config": cfg})
+    context.session.set_active_job(context.jobs.active_job)
+    context.session.set_last_job(context.jobs.last_job)
     return context.session.snapshot()
 
 
@@ -204,6 +235,8 @@ def start_measurement_job(req: JobStartRequest, context: AppContext = Depends(ge
                 warnings=(),
             )
             context.session.set_last_result(final_result)
+            if context.audio is not None:
+                context.audio.play_sound("complete", cfg.sound_enabled)
             return final_result
         finally:
             context.controller.release("measurement")
@@ -214,6 +247,8 @@ def start_measurement_job(req: JobStartRequest, context: AppContext = Depends(ge
         context.controller.release("measurement")
         raise
     context.session.set_active_job(job)
+    if context.audio is not None:
+        context.audio.play_sound("start", cfg.sound_enabled)
     return job
 
 
@@ -260,7 +295,19 @@ def get_job(job_id: str, context: AppContext = Depends(get_context)) -> Any:
 
 @router.delete("/jobs/{job_id}", response_model=JobResponse, dependencies=[Depends(verify_origin), Depends(require_token)])
 def cancel_job(job_id: str, context: AppContext = Depends(get_context)) -> Any:
-    return context.jobs.cancel(job_id)
+    job = context.jobs.cancel(job_id)
+    context.session.set_active_job(context.jobs.active_job)
+    context.session.set_last_job(context.jobs.last_job)
+    if context.audio is not None:
+        context.audio.play_sound("stop", context.session.config_snapshot().sound_enabled)
+    return job
+
+
+@router.post("/audio/test", dependencies=[Depends(verify_origin), Depends(require_token)])
+def test_audio(req: AudioTestRequest, context: AppContext = Depends(get_context)) -> dict[str, Any]:
+    if context.audio is not None:
+        context.audio.play_sound(req.sound_type, enabled=True)
+    return {"status": "ok", "sound_type": req.sound_type}
 
 
 @router.get("/result/export", dependencies=[Depends(verify_origin), Depends(require_token)])

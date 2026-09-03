@@ -16,6 +16,23 @@ def test_get_windows(client, auth_headers) -> None:
     assert "windows" in response.json()
 
 
+def test_controller_can_be_enabled_and_disabled(client, auth_headers) -> None:
+    disabled = client.put("/api/controller", headers=auth_headers, json={"enabled": False})
+    assert disabled.status_code == 200
+    assert disabled.json()["enabled"] is False
+
+    enabled = client.put("/api/controller", headers=auth_headers, json={"enabled": True})
+    assert enabled.status_code == 200
+    assert enabled.json()["enabled"] is True
+
+
+def test_controller_wake_uses_requested_input(client, auth_headers, context) -> None:
+    response = client.post("/api/controller/wake", headers=auth_headers, json={"input": "right_stick"})
+    assert response.status_code == 200
+    assert response.json()["duration"] == "0.5s"
+    assert ("press_wake_input", "right_stick") in context.controller._backend.events
+
+
 def test_session_config_update(client, auth_headers) -> None:
     response = client.put("/api/session/config", headers=auth_headers, json={"point_count": 33})
     assert response.status_code == 200

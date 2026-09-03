@@ -32,7 +32,7 @@ const autoScroll = ref(true)
 const copied = ref(false)
 
 const activeJob = computed(() => sessionStore.activeJob)
-const isRunning = computed(() => activeJob.value?.state === 'running' || activeJob.value?.state === 'queued')
+const isRunning = computed(() => activeJob.value?.state === 'running' || activeJob.value?.state === 'queued' || activeJob.value?.state === 'canceling')
 const progressData = computed(() => activeJob.value?.progress)
 const currentPoint = computed(() => progressData.value?.current_point || 0)
 const totalPoints = computed(() => progressData.value?.total_points || pointCount.value)
@@ -226,14 +226,21 @@ function proceedToAnalysis() {
           >
             <Play class="w-3.5 h-3.5 fill-current" />
             <span>开始稳态测定</span>
+            <span v-if="sessionStore.config?.hotkey_enabled !== false" class="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 ml-1">
+              [{{ sessionStore.config?.hotkey_start || 'F9' }}]
+            </span>
           </button>
           <button
             v-else
             @click="cancelMeasurement"
-            class="w-full bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm"
+            :disabled="activeJob?.state === 'canceling'"
+            class="w-full bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Square class="w-3.5 h-3.5 fill-current" />
-            <span>中止当前任务</span>
+            <span>{{ activeJob?.state === 'canceling' ? '正在中止…' : '中止当前任务' }}</span>
+            <span v-if="sessionStore.config?.hotkey_enabled !== false" class="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 ml-1">
+              [{{ sessionStore.config?.hotkey_stop || 'F10' }}]
+            </span>
           </button>
         </div>
       </div>

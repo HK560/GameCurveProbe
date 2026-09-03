@@ -235,7 +235,7 @@ class MeasurementRunner:
                     sample = retry_sample
 
             if sample.valid_frames > 0:
-                velocities.append(sample.px_per_sec_x)
+                velocities.append(abs(sample.px_per_sec_x))
                 stabilities.append(sample.stability_score)
 
         if not velocities:
@@ -282,9 +282,11 @@ class MeasurementRunner:
 def replace_point_velocity(point: MeasurementPoint, noise_floor: float) -> MeasurementPoint:
     if not point.valid or point.velocity_px_s is None:
         return point
+    speed = abs(point.velocity_px_s)
+    net_speed = round(max(0.0, speed - noise_floor), 4)
     return MeasurementPoint(
         input=point.input,
-        velocity_px_s=round(max(0.0, point.velocity_px_s - noise_floor), 4),
+        velocity_px_s=net_speed,
         normalized_speed=point.normalized_speed,
         stability=point.stability,
         valid=point.valid,

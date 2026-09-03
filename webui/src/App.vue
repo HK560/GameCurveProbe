@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, ref } from 'vue'
+import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useSessionStore } from './stores/session'
 import { api } from './services/api'
 import { initiateApplicationShutdown } from './services/appShutdown'
+import { soundSynth } from './services/sound'
 import { ws } from './services/ws'
 import CaptureStep from './components/CaptureStep.vue'
 import DeadzoneStep from './components/DeadzoneStep.vue'
 import MeasurementStep from './components/MeasurementStep.vue'
+import HotkeySettingsModal from './components/HotkeySettingsModal.vue'
 const AnalysisStep = defineAsyncComponent(() => import('./components/AnalysisStep.vue'))
 import { 
   Monitor, 
@@ -15,12 +17,35 @@ import {
   Activity, 
   BarChart3, 
   Gamepad2, 
-  Power
+  Power,
+  Keyboard
 } from 'lucide-vue-next'
 
 const connectionStore = useConnectionStore()
 const sessionStore = useSessionStore()
 const isQuitting = ref(false)
+const wakeInput = ref('right_stick')
+const isWaking = ref(false)
+const showHotkeyModal = ref(false)
+
+async function toggleController() {
+  try {
+    await connectionStore.setControllerEnabled(!connectionStore.controllerEnabled)
+  } catch (err: any) {
+    window.alert(err.message || 'ViGEmBus 手柄状态切换失败')
+  }
+}
+
+async function wakeGame() {
+  isWaking.value = true
+  try {
+    await api.wakeController(wakeInput.value)
+    window.setTimeout(() => { isWaking.value = false }, 500)
+  } catch (err: any) {
+    isWaking.value = false
+    window.alert(err.message || '手柄唤醒失败')
+  }
+}
 
 const steps = [
   { id: 1, title: '窗口与抓图', desc: '选择游戏及特征ROI区域', icon: Monitor },
@@ -45,12 +70,51 @@ async function quitApplication() {
   }, 1000)
 }
 
+function handleKeyDown(event: KeyboardEvent) {
+  // Ignore hotkey triggers when user is typing in an input/textarea/select
+  const target = event.target as HTMLElement | null
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+    return
+  }
+
+  const cfg = sessionStore.config
+  if (!cfg || cfg.hotkey_enabled === false) return
+
+  const startKey = (cfg.hotkey_start || 'F9').toUpperCase()
+  const stopKey = (cfg.hotkey_stop || 'F10').toUpperCase()
+
+  const pressedKey = event.key.toUpperCase()
+
+  if (pressedKey === startKey || (startKey === 'F9' && event.key === 'F9')) {
+    event.preventDefault()
+    if (!sessionStore.activeJob) {
+      sessionStore.startMeasurement()
+      if (cfg.sound_enabled !== false) {
+        soundSynth.playStartSound()
+      }
+    }
+  } else if (pressedKey === stopKey || (stopKey === 'F10' && event.key === 'F10')) {
+    event.preventDefault()
+    if (sessionStore.activeJob?.id) {
+      sessionStore.cancelJob(sessionStore.activeJob.id)
+      if (cfg.sound_enabled !== false) {
+        soundSynth.playStopSound()
+      }
+    }
+  }
+}
+
 onMounted(async () => {
   await connectionStore.checkHealth()
   sessionStore.initListeners()
   ws.connectEvents()
   ws.connectPreview()
   await sessionStore.loadInitialData()
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 
@@ -91,6 +155,64 @@ onMounted(async () => {
             <span v-else class="text-neutral-400">
               未抓取窗口
             </span>
+          </div>
+
+          <!-- Hotkey & Sound settings button -->
+          <button
+            type="button"
+            class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer border border-neutral-200/80"
+            title="设置快捷键与操作提示音效"
+            @click="showHotkeyModal = true"
+          >
+            <Keyboard class="w-3.5 h-3.5 text-neutral-700" />
+            <span>快捷键 & 音效</span>
+            <span class="font-mono text-[10px] bg-neutral-100 px-1 py-0.2 rounded text-neutral-500">
+              {{ sessionStore.config?.hotkey_start || 'F9' }} / {{ sessionStore.config?.hotkey_stop || 'F10' }}
+            </span>
+          </button>
+
+          <label
+            class="flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:bg-neutral-100 cursor-pointer"
+            :class="{ 'opacity-50 cursor-wait': connectionStore.isUpdatingController }"
+            title="启用或关闭 ViGEmBus 虚拟手柄"
+          >
+            <span>ViGEmBus</span>
+            <input
+              type="checkbox"
+              class="sr-only peer"
+              :checked="connectionStore.controllerEnabled"
+              :disabled="connectionStore.isUpdatingController || !connectionStore.controllerReady"
+              aria-label="ViGEmBus 虚拟手柄开关"
+              @change="toggleController"
+            />
+            <span class="relative w-7 h-4 rounded-full bg-neutral-300 peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-3 after:h-3 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-3"></span>
+          </label>
+          <div class="flex items-center gap-1.5">
+            <select
+              v-model="wakeInput"
+              :disabled="isWaking || !connectionStore.controllerEnabled"
+              aria-label="选择唤醒按键"
+              class="h-7 rounded-md border border-neutral-200 bg-white px-2 text-[11px] text-neutral-600 disabled:opacity-50"
+            >
+              <option value="right_stick">RS（右摇杆按下）</option>
+              <option value="x">X</option>
+              <option value="y">Y</option>
+              <option value="a">A</option>
+              <option value="b">B</option>
+              <option value="left_bumper">LB</option>
+              <option value="right_bumper">RB</option>
+              <option value="left_trigger">LT</option>
+              <option value="right_trigger">RT</option>
+            </select>
+            <button
+              type="button"
+              :disabled="isWaking || !connectionStore.controllerEnabled"
+              class="h-7 rounded-md bg-neutral-900 px-2.5 text-[11px] font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+              title="按下所选按键 0.5 秒"
+              @click="wakeGame"
+            >
+              {{ isWaking ? '按下中…' : '唤醒游戏' }}
+            </button>
           </div>
           <button
             type="button"
@@ -143,5 +265,11 @@ onMounted(async () => {
         <AnalysisStep />
       </div>
     </main>
+
+    <!-- Hotkey & Sound Settings Modal -->
+    <HotkeySettingsModal
+      :show="showHotkeyModal"
+      @close="showHotkeyModal = false"
+    />
   </div>
 </template>

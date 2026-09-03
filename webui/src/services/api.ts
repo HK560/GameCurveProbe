@@ -85,8 +85,22 @@ export class ApiClient {
     return data
   }
 
-  public async getHealth(): Promise<{ status: string; controller_ready: boolean }> {
+  public async getHealth(): Promise<{ status: string; controller_ready: boolean; controller_enabled: boolean }> {
     return this.request('/api/health')
+  }
+
+  public async setControllerEnabled(enabled: boolean): Promise<{ enabled: boolean; available: boolean }> {
+    return this.request('/api/controller', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    })
+  }
+
+  public async wakeController(input: string): Promise<{ input: string; duration: string }> {
+    return this.request('/api/controller/wake', {
+      method: 'POST',
+      body: JSON.stringify({ input }),
+    })
   }
 
   public async quitApplication(): Promise<{ status: string }> {
@@ -198,6 +212,13 @@ export class ApiClient {
       body,
     })
     return res.result
+  }
+
+  public async testAudio(soundType: 'start' | 'stop' | 'complete' | 'test' = 'test'): Promise<{ status: string; sound_type: string }> {
+    return this.request('/api/audio/test', {
+      method: 'POST',
+      body: JSON.stringify({ sound_type: soundType }),
+    })
   }
 }
 

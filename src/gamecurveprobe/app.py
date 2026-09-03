@@ -6,6 +6,7 @@ import secrets
 import sys
 import threading
 import webbrowser
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -17,15 +18,19 @@ from gamecurveprobe.backends.capture.wgc_backend import WgcCaptureBackend
 from gamecurveprobe.backends.controller.vgamepad_backend import VgamepadControllerBackend
 from gamecurveprobe.context import AppContext
 from gamecurveprobe.events import EventHub, publish_job_event
+from gamecurveprobe.models import SessionResult
+from gamecurveprobe.services.audio_service import AudioService
 from gamecurveprobe.services.capture_service import CaptureService
 from gamecurveprobe.services.controller_service import ControllerService
 from gamecurveprobe.services.deadzone_probe_service import DeadzoneProbeService
 from gamecurveprobe.services.export_service import ExportService
+from gamecurveprobe.services.hotkey_service import HotkeyService
 from gamecurveprobe.services.idle_noise_runner import IdleNoiseRunner
 from gamecurveprobe.services.job_manager import JobManager
 from gamecurveprobe.services.measurement_runner import MeasurementRunner
 from gamecurveprobe.services.session_service import SessionService
 from gamecurveprobe.services.window_service import WindowService
+from gamecurveprobe.vision.curve_classifier import classify_curve
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,8 +66,14 @@ def build_context(
         window_service=window_service,
     )
     session = SessionService()
+
+    def handle_job_publish(ev: Mapping[str, object]) -> None:
+        publish_job_event(events, ev)
+        session.set_active_job(jobs.active_job)
+        session.set_last_job(jobs.last_job)
+
     jobs = JobManager(
-        publish=lambda ev: publish_job_event(events, ev),
+        publish=handle_job_publish,
     )
 
     probe = DeadzoneProbeService(controller)
@@ -76,6 +87,66 @@ def build_context(
         motion_sampler=None,
     )
     export = ExportService()
+    audio = AudioService(enabled=session.config_snapshot().sound_enabled)
+
+    def on_start_hotkey() -> None:
+        snap = session.snapshot()
+        if snap.active_job is not None:
+            return
+        if snap.capture is None or snap.roi is None:
+            events.publish("job_failed", {"error": "未选定抓图窗口或ROI区域"})
+            return
+
+        cfg = snap.config
+        capture.assert_ready(snap.roi)
+        controller.acquire("measurement")
+
+        def runner(cancel_event, publish):
+            try:
+                result = measurement.run(
+                    cfg,
+                    cancel_event,
+                    publish,
+                    roi=snap.roi,
+                    noise=snap.noise,
+                )
+                analysis = classify_curve(result.points)
+                final_result = SessionResult(
+                    points=result.points,
+                    noise=result.noise,
+                    analysis=analysis,
+                    schema_version=result.schema_version,
+                    measured_at=result.measured_at,
+                    session_id=snap.id,
+                    environment={
+                        "window_title": snap.capture.title,
+                        "capture_backend": snap.capture.backend,
+                        "requested_fps": snap.capture.target_fps,
+                        "actual_fps": capture.health().fps,
+                        "frame_size": [snap.capture.width, snap.capture.height],
+                        "roi": asdict(snap.roi),
+                    },
+                    config=asdict(cfg),
+                    warnings=(),
+                )
+                session.set_last_result(final_result)
+                audio.play_sound("complete", cfg.sound_enabled)
+                return final_result
+            finally:
+                controller.release("measurement")
+
+        job = jobs.start("measurement", runner)
+        session.set_active_job(job)
+        audio.play_sound("start", cfg.sound_enabled)
+
+    def on_stop_hotkey() -> None:
+        if jobs.active_job is not None:
+            jobs.cancel_active()
+            audio.play_sound("stop", session.config_snapshot().sound_enabled)
+
+    cfg = session.config_snapshot()
+    hotkey = HotkeyService(on_start=on_start_hotkey, on_stop=on_stop_hotkey)
+    hotkey.start(enabled=cfg.hotkey_enabled, start_key=cfg.hotkey_start, stop_key=cfg.hotkey_stop)
 
     allowed_origins = frozenset({
         f"http://{host}:{port}",
@@ -96,6 +167,8 @@ def build_context(
         idle_noise=idle_noise,
         export=export,
         events=events,
+        audio=audio,
+        hotkey=hotkey,
         allowed_origins=allowed_origins,
         shutdown_callback=shutdown_callback or (lambda: None),
     )
