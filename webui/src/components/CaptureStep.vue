@@ -6,6 +6,7 @@ import QualityBadge from './QualityBadge.vue'
 import { RefreshCw, Play, ArrowRight, Settings2, ShieldAlert } from 'lucide-vue-next'
 import type { RoiRect } from '../types/api'
 import { captureErrorMessage, captureModeInfo, type CaptureMode } from '../services/captureModes'
+import { t } from '../services/i18n'
 
 const sessionStore = useSessionStore()
 
@@ -53,7 +54,7 @@ async function refreshWindows() {
 
 async function handleAttach() {
   if (!selectedWindowId.value) {
-    errorMessage.value = '请先在列表中选择目标窗口'
+    errorMessage.value = t('select_window_first')
     return
   }
   errorMessage.value = null
@@ -96,13 +97,13 @@ function proceedToDeadzone() {
       <!-- Window Selector -->
       <div class="lg:col-span-5 space-y-1.5">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-medium text-neutral-700">目标游戏窗口</label>
+          <label class="text-xs font-medium text-neutral-700">{{ t('target_window') }}</label>
           <button
             @click="refreshWindows"
             class="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center space-x-1 cursor-pointer transition"
           >
             <RefreshCw class="w-3 h-3" />
-            <span>刷新列表</span>
+            <span>{{ t('refresh_list') }}</span>
           </button>
         </div>
         <select
@@ -110,7 +111,7 @@ function proceedToDeadzone() {
           @change="onWindowSelect"
           class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
-          <option :value="null" disabled>-- 请选择运行中的游戏窗口 --</option>
+          <option :value="null" disabled>{{ t('select_window_placeholder') }}</option>
           <option
             v-for="win in sessionStore.windows"
             :key="win.id"
@@ -123,29 +124,29 @@ function proceedToDeadzone() {
 
       <!-- Backend Selector -->
       <div class="lg:col-span-3 space-y-1.5">
-        <label class="text-xs font-medium text-neutral-700">抓图引擎</label>
+        <label class="text-xs font-medium text-neutral-700">{{ t('capture_engine') }}</label>
         <select
           v-model="selectedBackend"
           @change="onBackendOrFpsChange"
           class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
-          <option value="auto">Auto（WGC 独立窗口捕获）</option>
+          <option value="auto">{{ t('wgc_desc') }}</option>
           <option value="wgc">Windows Graphics Capture（WGC）</option>
-          <option value="dxcam">屏幕区域兼容模式（DXGI）</option>
+          <option value="dxcam">{{ t('dxcam_desc') }}</option>
         </select>
       </div>
 
       <!-- Target FPS -->
       <div class="lg:col-span-2 space-y-1.5">
-        <label class="text-xs font-medium text-neutral-700">目标帧率</label>
+        <label class="text-xs font-medium text-neutral-700">{{ t('target_fps') }}</label>
         <select
           v-model="selectedFps"
           @change="onBackendOrFpsChange"
           class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option :value="60">60 FPS</option>
-          <option :value="120">120 FPS (推荐)</option>
-          <option :value="240">240 FPS (高刷)</option>
+          <option :value="120">120 FPS ({{ t('recommended') }})</option>
+          <option :value="240">240 FPS ({{ t('high_refresh') }})</option>
         </select>
       </div>
 
@@ -159,7 +160,7 @@ function proceedToDeadzone() {
         >
           <RefreshCw v-if="sessionStore.isAttaching" class="w-4 h-4 animate-spin" />
           <Play v-else class="w-3.5 h-3.5 fill-current" />
-          <span>{{ isAttached ? '重新绑定' : '开始抓图' }}</span>
+          <span>{{ isAttached ? '重新绑定' : t('start_capture') }}</span>
         </button>
       </div>
     </div>
@@ -237,7 +238,7 @@ function proceedToDeadzone() {
             :disabled="!isAttached || !sessionStore.roi || (roiQuality ? roiQuality.score < 25 : false)"
             class="w-full bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer"
           >
-            <span>下一步：手柄死区标定</span>
+            <span>{{ t('proceed_to_deadzone') }}</span>
             <ArrowRight class="w-4 h-4" />
           </button>
         </div>

@@ -3,6 +3,7 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { createProbeLease } from '../services/probeLease'
 import DeadzoneRangeSlider from './DeadzoneRangeSlider.vue'
+import { t } from '../services/i18n'
 import { 
   Target, 
   Play, 
@@ -184,7 +185,7 @@ function proceedToMeasurement() {
           >
             <Square v-if="probeActive" class="w-3.5 h-3.5 fill-current" />
             <Play v-else class="w-3.5 h-3.5 fill-current" />
-            <span>{{ probeActive ? '释放摇杆 (停止测试)' : '激活摇杆实时输出' }}</span>
+            <span>{{ probeActive ? t('stop_probe') : t('start_probe') }}</span>
           </button>
         </div>
       </div>
@@ -193,7 +194,7 @@ function proceedToMeasurement() {
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
         <!-- Target Selector (6 cols) -->
         <div class="md:col-span-6 flex items-center space-x-3">
-          <span class="text-xs text-neutral-500 shrink-0">当前探测目标:</span>
+          <span class="text-xs text-neutral-500 shrink-0">{{ t('probe_target') }}:</span>
           <div class="flex rounded-lg bg-neutral-100 p-0.5 text-xs font-medium text-neutral-600 flex-1">
             <button
               type="button"
@@ -202,7 +203,7 @@ function proceedToMeasurement() {
               :class="activeProbeTarget === 'inner' ? 'bg-white text-neutral-900 shadow-xs font-bold' : 'hover:text-neutral-900'"
             >
               <Radio class="w-3.5 h-3.5" :class="activeProbeTarget === 'inner' ? 'text-neutral-900' : 'text-neutral-400'" />
-              <span>内死区: {{ (innerDeadzone * 100).toFixed(1) }}%</span>
+              <span>{{ t('inner_deadzone') }}: {{ (innerDeadzone * 100).toFixed(1) }}%</span>
             </button>
             <button
               type="button"
@@ -211,14 +212,14 @@ function proceedToMeasurement() {
               :class="activeProbeTarget === 'outer' ? 'bg-white text-neutral-900 shadow-xs font-bold' : 'hover:text-neutral-900'"
             >
               <Radio class="w-3.5 h-3.5" :class="activeProbeTarget === 'outer' ? 'text-neutral-900' : 'text-neutral-400'" />
-              <span>外死区: {{ (outerDeadzone * 100).toFixed(1) }}%</span>
+              <span>{{ t('outer_deadzone') }}: {{ (outerDeadzone * 100).toFixed(1) }}%</span>
             </button>
           </div>
         </div>
 
         <!-- Step Selector (6 cols) -->
         <div class="md:col-span-6 flex items-center space-x-3">
-          <span class="text-xs text-neutral-500 shrink-0">调节步长:</span>
+          <span class="text-xs text-neutral-500 shrink-0">{{ t('adjust_step') }}:</span>
           <div class="grid grid-cols-3 gap-1.5 flex-1">
             <button
               v-for="step in [0.001, 0.005, 0.01]"
@@ -232,7 +233,7 @@ function proceedToMeasurement() {
                   : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
               ]"
             >
-              {{ step === 0.001 ? '0.001 (精细)' : step === 0.005 ? '0.005 (标准)' : '0.01 (快速)' }}
+              {{ step === 0.001 ? t('step_fine') : step === 0.005 ? t('step_standard') : t('step_fast') }}
             </button>
           </div>
         </div>
@@ -291,14 +292,14 @@ function proceedToMeasurement() {
           class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
         >
           <ArrowLeft class="w-4 h-4" />
-          <span>上一步：窗口与抓图</span>
+          <span>{{ t('step_1_title') }}</span>
         </button>
         <button
           type="button"
           @click="proceedToMeasurement"
           class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs shadow-xs"
         >
-          <span>下一步：曲线测定</span>
+          <span>{{ t('proceed_to_measurement') }}</span>
           <ArrowRight class="w-4 h-4" />
         </button>
       </div>

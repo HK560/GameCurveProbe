@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useSessionStore } from '../stores/session'
+import { t } from '../services/i18n'
 import { 
   Activity, 
   Play, 
@@ -22,7 +23,6 @@ import {
 import type { RangeMode } from '../types/api'
 
 const sessionStore = useSessionStore()
-
 const rangeMode = ref<RangeMode>(sessionStore.config?.range_mode || 'full')
 
 // Point Count Presets & Custom Input
@@ -222,32 +222,32 @@ function proceedToAnalysis() {
       <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
         <div class="flex items-center space-x-2">
           <Sliders class="w-3.5 h-3.5 text-neutral-700" />
-          <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">采样参数配置</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('measurement_param_config') }}</span>
         </div>
         <div class="text-xs text-neutral-400">
-          基于当前死区: 内死区 {{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}%, 
-          外死区 {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%
+          {{ t('base_on_deadzone') }}: {{ t('inner_deadzone') }} {{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}%, 
+          {{ t('outer_deadzone') }} {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%
         </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-neutral-700">测定范围模式</label>
+          <label class="text-xs font-medium text-neutral-700">{{ t('range_mode') }}</label>
           <select
             v-model="rangeMode"
             :disabled="isRunning"
             class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
           >
-            <option value="full">全范围 (内死区至外死区)</option>
-            <option value="active_range">有效行程（内死区至外死区）</option>
+            <option value="full">{{ t('range_full') }}</option>
+            <option value="active_range">{{ t('range_active') }}</option>
           </select>
         </div>
 
         <!-- 采样点密度 -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-medium text-neutral-700">采样点密度</label>
-            <span v-if="pointCountPreset === 'custom'" class="text-[10px] text-neutral-400 font-mono">自定义点数</span>
+            <label class="text-xs font-medium text-neutral-700">{{ t('point_density') }}</label>
+            <span v-if="pointCountPreset === 'custom'" class="text-[10px] text-neutral-400 font-mono">{{ t('custom_points_label') }}</span>
           </div>
           <div class="space-y-1.5">
             <select
@@ -255,10 +255,10 @@ function proceedToAnalysis() {
               :disabled="isRunning"
               class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
             >
-              <option value="9">9 点 (快速摸底, ~15秒)</option>
-              <option value="17">17 点 (标准推荐, ~30秒)</option>
-              <option value="33">33 点 (高精密度, ~60秒)</option>
-              <option value="custom">✏️ 自定义采样点数...</option>
+              <option value="9">9 点 (~15s)</option>
+              <option value="17">17 点 (~30s)</option>
+              <option value="33">33 点 (~60s)</option>
+              <option value="custom">{{ t('custom_points') }}</option>
             </select>
             <div v-if="pointCountPreset === 'custom'" class="flex items-center space-x-2 pt-0.5">
               <input
@@ -270,7 +270,7 @@ function proceedToAnalysis() {
                 placeholder="例如 25"
                 class="w-full bg-white border border-neutral-300 rounded-lg px-2.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
               />
-              <span class="text-xs font-mono text-neutral-500 shrink-0">点 (3-100)</span>
+              <span class="text-xs font-mono text-neutral-500 shrink-0">{{ t('points_unit') }}</span>
             </div>
           </div>
         </div>
@@ -278,7 +278,7 @@ function proceedToAnalysis() {
         <!-- 单点稳定/采样时长 -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-medium text-neutral-700">单点稳定/采样时长</label>
+            <label class="text-xs font-medium text-neutral-700">{{ t('settle_sample_duration') }}</label>
             <span v-if="durationPreset !== 'custom'" class="text-[10px] font-mono text-neutral-400">
               {{ settleMs }}ms / {{ sampleMs }}ms
             </span>
@@ -289,10 +289,10 @@ function proceedToAnalysis() {
               :disabled="isRunning"
               class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
             >
-              <option value="standard">标准推荐 (Settle: 300ms / Sample: 700ms)</option>
-              <option value="fast">快速响应 (Settle: 200ms / Sample: 500ms)</option>
-              <option value="precise">高精平滑 (Settle: 400ms / Sample: 1000ms)</option>
-              <option value="custom">✏️ 自定义时长 (毫秒)...</option>
+              <option value="standard">{{ t('duration_standard') }}</option>
+              <option value="fast">{{ t('duration_fast') }}</option>
+              <option value="precise">{{ t('duration_precise') }}</option>
+              <option value="custom">{{ t('duration_custom') }}</option>
             </select>
             <div v-if="durationPreset === 'custom'" class="grid grid-cols-2 gap-2 pt-0.5">
               <div class="flex items-center space-x-1">
@@ -325,14 +325,16 @@ function proceedToAnalysis() {
           </div>
         </div>
 
+        <!-- Start / Stop Button -->
         <div>
           <button
             v-if="!isRunning"
+            type="button"
             @click="startMeasurement"
             class="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm"
           >
             <Play class="w-3.5 h-3.5 fill-current" />
-            <span>开始稳态测定</span>
+            <span>{{ t('start_measurement') }}</span>
             <span v-if="sessionStore.config?.hotkey_enabled !== false" class="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 ml-1">
               [{{ sessionStore.config?.hotkey_start || 'F9' }}]
             </span>
@@ -344,7 +346,7 @@ function proceedToAnalysis() {
             class="w-full bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Square class="w-3.5 h-3.5 fill-current" />
-            <span>{{ activeJob?.state === 'canceling' ? '正在中止…' : '中止当前任务' }}</span>
+            <span>{{ activeJob?.state === 'canceling' ? t('canceling') : t('cancel_task') }}</span>
             <span v-if="sessionStore.config?.hotkey_enabled !== false" class="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 ml-1">
               [{{ sessionStore.config?.hotkey_stop || 'F10' }}]
             </span>
@@ -481,7 +483,7 @@ function proceedToAnalysis() {
           <div class="flex items-center justify-between border-b border-neutral-100 pb-2">
             <div class="flex items-center space-x-2">
               <Terminal class="w-3.5 h-3.5 text-neutral-700" />
-              <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">诊断日志</span>
+              <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('measurement_logs') }}</span>
               <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-neutral-100 text-neutral-500 font-mono">
                 {{ sessionStore.measurementLogs.length }}
               </span>
@@ -501,7 +503,7 @@ function proceedToAnalysis() {
               <button
                 @click="copyLogs"
                 class="p-1 rounded text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer"
-                title="复制全部日志"
+                :title="t('copy_logs')"
               >
                 <Check v-if="copied" class="w-3.5 h-3.5 text-neutral-900" />
                 <Copy v-else class="w-3.5 h-3.5" />
@@ -510,7 +512,7 @@ function proceedToAnalysis() {
               <button
                 @click="sessionStore.clearLogs"
                 class="p-1 rounded text-neutral-500 hover:text-rose-600 hover:bg-neutral-100 transition cursor-pointer"
-                title="清空日志"
+                :title="t('clear_logs')"
               >
                 <Trash2 class="w-3.5 h-3.5" />
               </button>
@@ -581,12 +583,12 @@ function proceedToAnalysis() {
           <thead class="bg-neutral-100 text-neutral-600 sticky top-0">
             <tr>
               <th class="p-2.5">#</th>
-              <th class="p-2.5">输入推杆量</th>
-              <th class="p-2.5">角速度 (px/s)</th>
-              <th class="p-2.5">归一化比例</th>
-              <th class="p-2.5">稳定性评分</th>
-              <th class="p-2.5">有效覆盖</th>
-              <th class="p-2.5">状态</th>
+              <th class="p-2.5">{{ t('stick_input') }}</th>
+              <th class="p-2.5">{{ t('angular_velocity') }}</th>
+              <th class="p-2.5">{{ t('normalized_speed') }}</th>
+              <th class="p-2.5">{{ t('stability') }}</th>
+              <th class="p-2.5">{{ t('coverage') }}</th>
+              <th class="p-2.5">{{ t('status') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-neutral-100 font-mono text-neutral-800">
@@ -598,10 +600,10 @@ function proceedToAnalysis() {
               <td class="p-2.5 text-neutral-400">{{ idx + 1 }}</td>
               <td class="p-2.5 font-bold">{{ (pt.input * 100).toFixed(1) }}%</td>
               <td class="p-2.5 font-medium">
-                {{ pt.velocity_px_s !== null ? `${pt.velocity_px_s} px/s` : '无效' }}
+                {{ pt.velocity_px_s !== null ? `${pt.velocity_px_s} px/s` : '-' }}
               </td>
               <td class="p-2.5">
-                {{ pt.normalized_speed !== null ? `${(pt.normalized_speed * 100).toFixed(1)}%` : (isRunning ? '计算中...' : '-') }}
+                {{ pt.normalized_speed !== null ? `${(pt.normalized_speed * 100).toFixed(1)}%` : (isRunning ? '...' : '-') }}
               </td>
               <td class="p-2.5">{{ Math.round(pt.stability * 100) }}%</td>
               <td class="p-2.5">{{ Math.round((pt.coverage ?? pt.stability) * 100) }}%</td>
@@ -610,7 +612,7 @@ function proceedToAnalysis() {
                   class="px-1.5 py-0.5 rounded text-[10px]"
                   :class="pt.valid ? 'bg-neutral-100 text-neutral-800 border border-neutral-200' : 'bg-rose-50 text-rose-600 border border-rose-200'"
                 >
-                  {{ pt.valid ? '有效' : '重试失稳' }}
+                  {{ pt.valid ? t('status_valid') : t('status_invalid') }}
                 </span>
               </td>
             </tr>
@@ -627,14 +629,14 @@ function proceedToAnalysis() {
         class="flex-1 bg-neutral-100 hover:bg-neutral-200 disabled:opacity-40 text-neutral-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
       >
         <ArrowLeft class="w-4 h-4" />
-        <span>上一步：死区调整</span>
+        <span>{{ t('step_2_title') }}</span>
       </button>
       <button
         @click="proceedToAnalysis"
         :disabled="!hasCompleted"
         class="flex-1 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
       >
-        <span>下一步：拟合分析与导出报告</span>
+        <span>{{ t('step_4_title') }}</span>
         <ArrowRight class="w-4 h-4" />
       </button>
     </div>

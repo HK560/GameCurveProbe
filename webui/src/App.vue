@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useSessionStore } from './stores/session'
 import { api } from './services/api'
 import { initiateApplicationShutdown } from './services/appShutdown'
 import { soundSynth } from './services/sound'
 import { ws } from './services/ws'
+import { t, currentLocale, setLocale } from './services/i18n'
 import CaptureStep from './components/CaptureStep.vue'
 import DeadzoneStep from './components/DeadzoneStep.vue'
 import MeasurementStep from './components/MeasurementStep.vue'
@@ -19,7 +20,8 @@ import {
   BarChart3, 
   Gamepad2, 
   Power,
-  Keyboard
+  Keyboard,
+  Globe
 } from 'lucide-vue-next'
 
 const connectionStore = useConnectionStore()
@@ -56,12 +58,12 @@ async function onWakeInputChange() {
   }
 }
 
-const steps = [
-  { id: 1, title: '窗口与抓图', desc: '选择游戏及特征ROI区域', icon: Monitor },
-  { id: 2, title: '死区标定', desc: '内外死区交互测定', icon: Target },
-  { id: 3, title: '曲线测定', desc: '自动化稳态旋转测定', icon: Activity },
-  { id: 4, title: '分析与导出', desc: '拟合曲线与报告下载', icon: BarChart3 },
-]
+const steps = computed(() => [
+  { id: 1, title: t('step_1_title'), desc: t('step_1_desc'), icon: Monitor },
+  { id: 2, title: t('step_2_title'), desc: t('step_2_desc'), icon: Target },
+  { id: 3, title: t('step_3_title'), desc: t('step_3_desc'), icon: Activity },
+  { id: 4, title: t('step_4_title'), desc: t('step_4_desc'), icon: BarChart3 },
+])
 
 async function quitApplication() {
   if (!window.confirm('确定要退出 GameCurveProbe 吗？当前测定任务将被安全中止。')) {
@@ -189,7 +191,7 @@ onUnmounted(() => {
               </h1>
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500 font-mono">v2.0</span>
             </div>
-            <p class="text-[11px] text-neutral-400">手柄响应曲线精密测定</p>
+            <p class="text-[11px] text-neutral-400">{{ t('app_subtitle') }}</p>
           </div>
         </div>
 
@@ -197,18 +199,18 @@ onUnmounted(() => {
           <div class="flex items-center space-x-2 px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 text-[11px]">
             <span v-if="connectionStore.connected" class="flex items-center text-neutral-700 font-medium">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-              服务已连接
+              {{ t('connected') }}
             </span>
             <span v-else class="flex items-center text-rose-600 font-medium">
               <span class="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5"></span>
-              未连接
+              {{ t('disconnected') }}
             </span>
             <span class="text-neutral-300">|</span>
             <span v-if="sessionStore.capture" class="text-neutral-600 font-mono">
               {{ sessionStore.capture.backend.toUpperCase() }} {{ sessionStore.capture.width }}×{{ sessionStore.capture.height }}
             </span>
             <span v-else class="text-neutral-400">
-              未抓取窗口
+              {{ t('no_window_captured') }}
             </span>
           </div>
 
@@ -220,7 +222,7 @@ onUnmounted(() => {
             @click="showHotkeyModal = true"
           >
             <Keyboard class="w-3.5 h-3.5 text-neutral-700" />
-            <span>快捷键 & 音效</span>
+            <span>{{ t('hotkeys_and_sound') }}</span>
             <span class="font-mono text-[10px] bg-neutral-100 px-1 py-0.2 rounded text-neutral-500">
               {{ sessionStore.config?.hotkey_start || 'F9' }} / {{ sessionStore.config?.hotkey_stop || 'F10' }}
             </span>
@@ -293,9 +295,21 @@ onUnmounted(() => {
               title="按下所选按键 0.5 秒"
               @click="wakeGame"
             >
-              {{ isWaking ? '按下中…' : '唤醒游戏' }}
+              {{ isWaking ? t('waking') : t('test_wake') }}
             </button>
           </div>
+
+          <!-- Language Switcher -->
+          <button
+            type="button"
+            class="flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer border border-neutral-200/80"
+            title="Switch Language / 切换语言"
+            @click="setLocale(currentLocale === 'zh' ? 'en' : 'zh')"
+          >
+            <Globe class="w-3.5 h-3.5 text-neutral-700" />
+            <span class="font-mono font-bold">{{ currentLocale === 'zh' ? 'EN' : '中' }}</span>
+          </button>
+
           <button
             type="button"
             :disabled="isQuitting"
@@ -304,7 +318,7 @@ onUnmounted(() => {
             @click="quitApplication"
           >
             <Power class="w-3.5 h-3.5" />
-            <span>{{ isQuitting ? '退出中…' : '退出' }}</span>
+            <span>{{ isQuitting ? t('quitting') : t('quit') }}</span>
           </button>
         </div>
       </div>

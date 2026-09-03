@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import { soundSynth } from '../services/sound'
+import { t } from '../services/i18n'
 import { X, Keyboard, Volume2, VolumeX, Sparkles, Check, Gamepad2 } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -28,7 +29,7 @@ const isTestingSound = ref(false)
 const saveSuccess = ref(false)
 
 const startKeyOptions = [
-  { label: 'F9 (默认)', value: 'F9' },
+  { label: 'F9 (Default)', value: 'F9' },
   { label: 'F8', value: 'F8' },
   { label: 'F11', value: 'F11' },
   { label: 'F12', value: 'F12' },
@@ -38,7 +39,7 @@ const startKeyOptions = [
 ]
 
 const stopKeyOptions = [
-  { label: 'F10 (默认)', value: 'F10' },
+  { label: 'F10 (Default)', value: 'F10' },
   { label: 'F9', value: 'F9' },
   { label: 'F8', value: 'F8' },
   { label: 'Escape', value: 'Escape' },
@@ -48,7 +49,7 @@ const stopKeyOptions = [
 ]
 
 const dzIncOptions = [
-  { label: 'F7 (默认)', value: 'F7' },
+  { label: 'F7 (Default)', value: 'F7' },
   { label: 'F8', value: 'F8' },
   { label: 'PageUp', value: 'PAGEUP' },
   { label: 'Shift + F7', value: 'Shift+F7' },
@@ -56,7 +57,7 @@ const dzIncOptions = [
 ]
 
 const dzDecOptions = [
-  { label: 'F6 (默认)', value: 'F6' },
+  { label: 'F6 (Default)', value: 'F6' },
   { label: 'F5', value: 'F5' },
   { label: 'PageDown', value: 'PAGEDOWN' },
   { label: 'Shift + F6', value: 'Shift+F6' },
@@ -99,7 +100,7 @@ async function saveSettings() {
       emit('close')
     }, 600)
   } catch (err: any) {
-    alert(err.message || '快捷键与唤醒配置更新失败')
+    console.error('Failed to save hotkey settings:', err)
   } finally {
     isSaving.value = false
   }
@@ -128,8 +129,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             <Keyboard class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="text-sm font-semibold text-neutral-900">快捷键与音效设置</h3>
-            <p class="text-[11px] text-neutral-400">设置系统全局热键及操作音效提示</p>
+            <h3 class="text-sm font-semibold text-neutral-900">{{ t('hotkey_settings_title') }}</h3>
           </div>
         </div>
         <button
