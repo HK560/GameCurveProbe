@@ -23,7 +23,13 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.context = context_factory()
+        context = context_factory()
+        app.state.context = context
+        try:
+            context.controller.connect()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Failed to initialize virtual gamepad on startup: %s", exc)
         try:
             yield
         finally:
