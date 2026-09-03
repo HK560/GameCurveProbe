@@ -6,6 +6,9 @@ import type {
   CaptureInfo,
   CaptureHealth,
   JobSnapshot,
+  LogEntry,
+  LogLevel,
+  MeasurementPoint,
   ProbeConfig,
   ProbeSnapshot,
   RangeMode,
@@ -24,6 +27,8 @@ export const useSessionStore = defineStore('session', () => {
   const isUpdatingConfig = ref<boolean>(false)
   const livePreviewUrl = ref<string | null>(null)
   const livePreviewMeta = ref<{ width: number; height: number; frameId: number } | null>(null)
+  const measurementLogs = ref<LogEntry[]>([])
+  const livePoints = ref<MeasurementPoint[]>([])
 
   const internalActiveJob = ref<JobSnapshot | null>(null)
   const internalLastJob = ref<JobSnapshot | null>(null)
@@ -124,7 +129,31 @@ export const useSessionStore = defineStore('session', () => {
     return probe.value
   }
 
+  function addLog(level: LogLevel, message: string) {
+    const now = new Date()
+    const timestamp = [
+      now.getHours().toString().padStart(2, '0'),
+      now.getMinutes().toString().padStart(2, '0'),
+      now.getSeconds().toString().padStart(2, '0'),
+    ].join(':')
+    measurementLogs.value.push({
+      id: Math.random().toString(36).slice(2, 9),
+      timestamp,
+      level,
+      message,
+    })
+    if (measurementLogs.value.length > 500) {
+      measurementLogs.value.shift()
+    }
+  }
+
+  function clearLogs() {
+    measurementLogs.value = []
+  }
+
   async function startMeasurement(rangeMode?: RangeMode) {
+    livePoints.value = []
+    addLog('action', '正在启动稳态响应测定流程...')
     const job = await api.startMeasurement(rangeMode)
     internalActiveJob.value = job
     if (session.value) {
@@ -143,6 +172,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function cancelJob(jobId: string) {
+    addLog('action', '用户发起中止操作，正在重置手柄回中...')
     const job = await api.cancelJob(jobId)
     if (internalActiveJob.value?.id === jobId) {
       internalActiveJob.value = job
@@ -165,12 +195,36 @@ export const useSessionStore = defineStore('session', () => {
       if (session.value) {
         session.value.active_job = event.payload.job
       }
+      if (event.payload.job.state === 'running' && event.payload.job.kind === 'measurement') {
+        livePoints.value = []
+      }
     } else if (event.type === 'job_progress' && event.payload?.data) {
+      const data = event.payload.data
       if (internalActiveJob.value) {
-        internalActiveJob.value.progress = event.payload.data
+        internalActiveJob.value.progress = data
       }
       if (session.value?.active_job) {
-        session.value.active_job.progress = event.payload.data
+        session.value.active_job.progress = data
+      }
+      if (data.phase) {
+        if (data.phase === 'stage_start') {
+          addLog('info', data.message || `稳态测定启动: 共 ${data.total_points} 个采样点`)
+        } else if (data.phase === 'point_settle') {
+          addLog('settle', data.message || `采样点 [${data.current_point}/${data.total_points}] 推杆并等待稳定...`)
+        } else if (data.phase === 'point_sampling') {
+          addLog('sampling', data.message || `采样点 [${data.current_point}/${data.total_points}] 光流跟踪采样中...`)
+        } else if (data.phase === 'point_retry') {
+          addLog('warn', data.message || `采样点 [${data.current_point}/${data.total_points}] 稳定性不足触发复测...`)
+        } else if (data.phase === 'point_done') {
+          addLog('success', data.message || `采样点 [${data.current_point}/${data.total_points}] 测定完成`)
+          if (data.point) {
+            livePoints.value.push(data.point)
+          }
+        } else if (data.phase === 'stage_completed') {
+          addLog('info', data.message || '全测定流程完成')
+        }
+      } else if (data.message) {
+        addLog('info', data.message)
       }
     } else if (event.type === 'job_completed') {
       internalLastJob.value = event.payload.job
@@ -184,6 +238,7 @@ export const useSessionStore = defineStore('session', () => {
         if (session.value) {
           session.value.last_result = event.payload.result
         }
+        addLog('success', '稳态测定任务顺利完成，曲线分析已就绪')
       } else if (event.payload.result && event.payload.job?.kind === 'idle_noise') {
         internalNoise.value = event.payload.result
         if (session.value) {
@@ -196,6 +251,11 @@ export const useSessionStore = defineStore('session', () => {
       if (session.value) {
         session.value.last_job = event.payload.job
         session.value.active_job = null
+      }
+      if (event.type === 'job_canceled') {
+        addLog('warn', '测定任务已中止，手柄已安全回中')
+      } else {
+        addLog('error', `任务异常失败: ${event.payload?.error || '未知错误'}`)
       }
     } else if (event.type === 'capture_changed' && event.payload?.capture) {
       internalCapture.value = event.payload.capture
@@ -231,6 +291,8 @@ export const useSessionStore = defineStore('session', () => {
     isUpdatingConfig,
     livePreviewUrl,
     livePreviewMeta,
+    measurementLogs,
+    livePoints,
     activeJob,
     lastJob,
     lastResult,
@@ -241,6 +303,8 @@ export const useSessionStore = defineStore('session', () => {
     roi,
     roiQuality,
     noise,
+    addLog,
+    clearLogs,
     loadInitialData,
     fetchWindows,
     attachCapture,
