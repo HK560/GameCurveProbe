@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { RoiQuality } from '../types/api'
 import { CheckCircle2, AlertTriangle, AlertCircle, Sparkles } from 'lucide-vue-next'
+import { t } from '../services/i18n'
 
 const props = defineProps<{
   quality: RoiQuality | null
@@ -10,7 +11,7 @@ const props = defineProps<{
 const levelConfig = computed(() => {
   if (!props.quality) {
     return {
-      text: '未分析',
+      text: t('roi_not_analyzed'),
       textCol: 'text-neutral-500',
       icon: AlertCircle,
     }
@@ -18,37 +19,40 @@ const levelConfig = computed(() => {
   switch (props.quality.level) {
     case 'excellent':
       return {
-        text: '极佳特征',
+        text: t('roi_quality_excellent'),
         textCol: 'text-neutral-900',
         icon: Sparkles,
       }
     case 'good':
       return {
-        text: '良好特征',
+        text: t('roi_quality_good'),
         textCol: 'text-neutral-800',
         icon: CheckCircle2,
       }
     case 'fair':
       return {
-        text: '一般特征',
+        text: t('roi_quality_fair'),
         textCol: 'text-neutral-700',
         icon: AlertTriangle,
       }
     case 'poor':
     default:
       return {
-        text: '质量较差',
+        text: t('roi_quality_poor'),
         textCol: 'text-neutral-900',
         icon: AlertCircle,
       }
   }
 })
 
-const suggestionTextMap: Record<string, string> = {
-  ROI_TOO_SMALL: '选区尺寸小于 32x32 像素，过小无法稳定追踪',
-  REGION_TOO_FLAT: '区域图像过于平坦（缺乏对比度），请避开纯色天空或暗角',
-  FEW_FEATURE_POINTS: '角点特征不足，建议选区包含清晰几何边缘、UI或建筑边缘',
-  LOW_HORIZONTAL_TEXTURE: '水平纹理不足，建议选取具有明显纵横纹理对比的区域',
+const getSuggestionText = (sug: string) => {
+  switch (sug) {
+    case 'ROI_TOO_SMALL': return t('roi_too_small')
+    case 'REGION_TOO_FLAT': return t('region_too_flat')
+    case 'FEW_FEATURE_POINTS': return t('few_feature_points')
+    case 'LOW_HORIZONTAL_TEXTURE': return t('low_horizontal_texture')
+    default: return sug
+  }
 }
 </script>
 
@@ -61,7 +65,7 @@ const suggestionTextMap: Record<string, string> = {
       </div>
       <div class="flex items-baseline space-x-1">
         <span class="text-xl font-bold font-mono text-neutral-900">{{ quality.score }}</span>
-        <span class="text-xs text-neutral-400">/ 100 分</span>
+        <span class="text-xs text-neutral-400">/ 100</span>
       </div>
     </div>
 
@@ -69,7 +73,7 @@ const suggestionTextMap: Record<string, string> = {
     <div class="grid grid-cols-2 gap-3 text-xs text-neutral-600 mb-3">
       <div>
         <div class="flex justify-between mb-1 text-[11px]">
-          <span class="text-neutral-500">梯度丰富度</span>
+          <span class="text-neutral-500">{{ t('roi_gradient') }}</span>
           <span class="font-mono text-neutral-800">{{ Math.round((quality.metrics.gradient || 0) * 100) }}%</span>
         </div>
         <div class="w-full bg-neutral-100 rounded-full h-1 overflow-hidden">
@@ -78,7 +82,7 @@ const suggestionTextMap: Record<string, string> = {
       </div>
       <div>
         <div class="flex justify-between mb-1 text-[11px]">
-          <span class="text-neutral-500">角点特征数</span>
+          <span class="text-neutral-500">{{ t('roi_corners') }}</span>
           <span class="font-mono text-neutral-800">{{ Math.round((quality.metrics.corners || 0) * 100) }}%</span>
         </div>
         <div class="w-full bg-neutral-100 rounded-full h-1 overflow-hidden">
@@ -87,7 +91,7 @@ const suggestionTextMap: Record<string, string> = {
       </div>
       <div>
         <div class="flex justify-between mb-1 text-[11px]">
-          <span class="text-neutral-500">纹理信息熵</span>
+          <span class="text-neutral-500">{{ t('roi_entropy') }}</span>
           <span class="font-mono text-neutral-800">{{ Math.round((quality.metrics.entropy || 0) * 100) }}%</span>
         </div>
         <div class="w-full bg-neutral-100 rounded-full h-1 overflow-hidden">
@@ -96,7 +100,7 @@ const suggestionTextMap: Record<string, string> = {
       </div>
       <div>
         <div class="flex justify-between mb-1 text-[11px]">
-          <span class="text-neutral-500">水平追踪匹配</span>
+          <span class="text-neutral-500">{{ t('roi_tracking') }}</span>
           <span class="font-mono text-neutral-800">{{ Math.round((quality.metrics.tracking || 0) * 100) }}%</span>
         </div>
         <div class="w-full bg-neutral-100 rounded-full h-1 overflow-hidden">
@@ -109,11 +113,11 @@ const suggestionTextMap: Record<string, string> = {
     <div v-if="quality.suggestions && quality.suggestions.length > 0" class="space-y-1 mt-2 pt-2 border-t border-neutral-100">
       <div v-for="sug in quality.suggestions" :key="sug" class="flex items-start space-x-1.5 text-xs text-neutral-600">
         <span class="text-neutral-400 font-bold">•</span>
-        <span>{{ suggestionTextMap[sug] || sug }}</span>
+        <span>{{ getSuggestionText(sug) }}</span>
       </div>
     </div>
   </div>
   <div v-else class="p-4 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 text-center text-xs text-neutral-400">
-    在画面上拖拽鼠标框选 ROI 区域以评估追踪质量
+    {{ t('roi_instruction') }}
   </div>
 </template>

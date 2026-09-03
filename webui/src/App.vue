@@ -35,7 +35,7 @@ async function toggleController() {
   try {
     await connectionStore.setControllerEnabled(!connectionStore.controllerEnabled)
   } catch (err: any) {
-    window.alert(err.message || 'ViGEmBus 手柄状态切换失败')
+    window.alert(err.message || t('toggle_controller_failed'))
   }
 }
 
@@ -46,7 +46,7 @@ async function wakeGame() {
     window.setTimeout(() => { isWaking.value = false }, 500)
   } catch (err: any) {
     isWaking.value = false
-    window.alert(err.message || '手柄唤醒失败')
+    window.alert(err.message || t('wake_failed'))
   }
 }
 
@@ -248,51 +248,51 @@ onUnmounted(() => {
             <select
               v-model="wakeInput"
               :disabled="isWaking || !connectionStore.controllerEnabled"
-              aria-label="选择唤醒按键"
+              :aria-label="t('wake_key')"
               @change="onWakeInputChange"
               class="h-7 rounded-md border border-neutral-200 bg-white px-2 text-[11px] text-neutral-600 disabled:opacity-50"
             >
-              <optgroup label="基础按键">
-                <option value="right_stick">RS（右摇杆按下，默认）</option>
-                <option value="left_stick">LS（左摇杆按下）</option>
-                <option value="a">A 键</option>
-                <option value="b">B 键</option>
-                <option value="x">X 键</option>
-                <option value="y">Y 键</option>
+              <optgroup :label="t('wake_group_basic')">
+                <option value="right_stick">{{ t('wake_opt_right_stick') }}</option>
+                <option value="left_stick">{{ t('wake_opt_left_stick') }}</option>
+                <option value="a">{{ t('wake_opt_a') }}</option>
+                <option value="b">{{ t('wake_opt_b') }}</option>
+                <option value="x">{{ t('wake_opt_x') }}</option>
+                <option value="y">{{ t('wake_opt_y') }}</option>
               </optgroup>
-              <optgroup label="肩键与扳机">
-                <option value="left_bumper">LB（左肩键）</option>
-                <option value="right_bumper">RB（右肩键）</option>
-                <option value="left_trigger">LT（左扳机 100%）</option>
-                <option value="right_trigger">RT（右扳机 100%）</option>
+              <optgroup :label="t('wake_group_bumper_trigger')">
+                <option value="left_bumper">{{ t('wake_opt_lb') }}</option>
+                <option value="right_bumper">{{ t('wake_opt_rb') }}</option>
+                <option value="left_trigger">{{ t('wake_opt_lt') }}</option>
+                <option value="right_trigger">{{ t('wake_opt_rt') }}</option>
               </optgroup>
-              <optgroup label="功能按键">
-                <option value="start">Start（菜单/开始键）</option>
-                <option value="back">Back（视图/选择键）</option>
-                <option value="guide">Guide（Xbox 西瓜键）</option>
+              <optgroup :label="t('wake_group_function')">
+                <option value="start">{{ t('wake_opt_start') }}</option>
+                <option value="back">{{ t('wake_opt_back') }}</option>
+                <option value="guide">{{ t('wake_opt_guide') }}</option>
               </optgroup>
-              <optgroup label="十字键 (D-Pad)">
-                <option value="dpad_up">十字键 上 (D-Pad Up)</option>
-                <option value="dpad_down">十字键 下 (D-Pad Down)</option>
-                <option value="dpad_left">十字键 左 (D-Pad Left)</option>
-                <option value="dpad_right">十字键 右 (D-Pad Right)</option>
+              <optgroup :label="t('wake_group_dpad')">
+                <option value="dpad_up">{{ t('wake_opt_dpad_up') }}</option>
+                <option value="dpad_down">{{ t('wake_opt_dpad_down') }}</option>
+                <option value="dpad_left">{{ t('wake_opt_dpad_left') }}</option>
+                <option value="dpad_right">{{ t('wake_opt_dpad_right') }}</option>
               </optgroup>
-              <optgroup label="摇杆微推脉冲">
-                <option value="left_stick_up">左摇杆 向上轻推</option>
-                <option value="left_stick_down">左摇杆 向下轻推</option>
-                <option value="left_stick_left">左摇杆 向左轻推</option>
-                <option value="left_stick_right">左摇杆 向右轻推</option>
-                <option value="right_stick_up">右摇杆 向上轻推</option>
-                <option value="right_stick_down">右摇杆 向下轻推</option>
-                <option value="right_stick_left">右摇杆 向左轻推</option>
-                <option value="right_stick_right">右摇杆 向右轻推</option>
+              <optgroup :label="t('wake_group_stick_pulse')">
+                <option value="left_stick_up">{{ t('wake_opt_ls_up') }}</option>
+                <option value="left_stick_down">{{ t('wake_opt_ls_down') }}</option>
+                <option value="left_stick_left">{{ t('wake_opt_ls_left') }}</option>
+                <option value="left_stick_right">{{ t('wake_opt_ls_right') }}</option>
+                <option value="right_stick_up">{{ t('wake_opt_rs_up') }}</option>
+                <option value="right_stick_down">{{ t('wake_opt_rs_down') }}</option>
+                <option value="right_stick_left">{{ t('wake_opt_rs_left') }}</option>
+                <option value="right_stick_right">{{ t('wake_opt_rs_right') }}</option>
               </optgroup>
             </select>
             <button
               type="button"
               :disabled="isWaking || !connectionStore.controllerEnabled"
-              class="h-7 rounded-md bg-neutral-900 px-2.5 text-[11px] font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
-              title="按下所选按键 0.5 秒"
+              class="h-7 rounded-md bg-neutral-900 px-2.5 text-[11px] font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer"
+              :title="t('press_wake_hint')"
               @click="wakeGame"
             >
               {{ isWaking ? t('waking') : t('test_wake') }}

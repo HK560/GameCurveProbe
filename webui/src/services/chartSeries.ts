@@ -1,4 +1,5 @@
 import type { MeasurementPoint } from '../types/api'
+import { t } from './i18n'
 
 export interface CurveSeriesData {
   name: string
@@ -11,13 +12,13 @@ export function buildVelocitySeries(
   imported: MeasurementPoint[] = [],
 ): CurveSeriesData[] {
   const series: CurveSeriesData[] = [{
-    name: '实测速度 (px/s)',
+    name: t('series_measured'),
     data: measured.map((point) => [point.input, point.velocity_px_s]),
     imported: false,
   }]
   if (imported.length > 0) {
     series.push({
-      name: '导入速度 (px/s)',
+      name: t('series_imported'),
       data: imported.map((point) => [point.input, point.velocity_px_s]),
       imported: true,
     })

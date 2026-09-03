@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount } from 'vue'
+import { t } from '../services/i18n'
 import { 
   Minus, 
   Plus, 
@@ -197,17 +198,17 @@ onBeforeUnmount(() => {
         </div>
         <div>
           <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
-            双操控点死区与检测行程标定
+            {{ t('slider_card_title') }}
           </h3>
           <p class="text-[11px] text-neutral-400">
-            拖拽或微调双操控点设定内外死区，轴轨动态呈现有效检测范围与采样分布
+            {{ t('slider_card_desc') }}
           </p>
         </div>
       </div>
 
       <!-- Center Active Range Span Badge -->
       <div class="flex items-center space-x-2 px-3 py-1 bg-neutral-100 border border-neutral-200/60 rounded-full font-mono text-xs">
-        <span class="text-neutral-500 text-[11px]">有效检测行程:</span>
+        <span class="text-neutral-500 text-[11px]">{{ t('effective_detection_range') }}:</span>
         <span class="font-bold text-neutral-900">{{ (activeSpan * 100).toFixed(1) }}%</span>
         <span class="text-[10px] text-neutral-400">({{ activeSpan.toFixed(3) }})</span>
       </div>
@@ -228,13 +229,13 @@ onBeforeUnmount(() => {
         <div class="flex items-center justify-between mb-1.5">
           <div class="flex items-center space-x-1.5">
             <span class="w-2 h-2 rounded-full bg-neutral-900"></span>
-            <span class="text-xs font-semibold text-neutral-800">内死区 (Inner Deadzone)</span>
+            <span class="text-xs font-semibold text-neutral-800">{{ t('inner_deadzone') }}</span>
           </div>
           <span 
             v-if="activeProbeTarget === 'inner' && probeActive" 
             class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-neutral-900 text-white"
           >
-            探测目标
+            {{ t('probe_target_badge') }}
           </span>
         </div>
 
@@ -261,7 +262,7 @@ onBeforeUnmount(() => {
               type="button"
               @click.stop="adjustInner(-step)"
               class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
-              title="减小内死区 [F6]"
+              :title="t('dec_inner_deadzone')"
             >
               <Minus class="w-3.5 h-3.5" />
               <span v-if="activeProbeTarget === 'inner'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F6</span>
@@ -270,14 +271,14 @@ onBeforeUnmount(() => {
               type="button"
               @click.stop="adjustInner(step)"
               class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
-              title="增大内死区 [F7]"
+              :title="t('inc_inner_deadzone')"
             >
               <Plus class="w-3.5 h-3.5" />
               <span v-if="activeProbeTarget === 'inner'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F7</span>
             </button>
           </div>
         </div>
-        <p class="text-[10px] text-neutral-400 mt-1">摇杆推杆超过此阈值开始响应视口旋转</p>
+        <p class="text-[10px] text-neutral-400 mt-1">{{ t('inner_deadzone_desc') }}</p>
       </div>
 
       <!-- Outer Deadzone Card -->
@@ -293,13 +294,13 @@ onBeforeUnmount(() => {
         <div class="flex items-center justify-between mb-1.5">
           <div class="flex items-center space-x-1.5">
             <span class="w-2 h-2 rounded-full bg-neutral-900"></span>
-            <span class="text-xs font-semibold text-neutral-800">外死区 (Outer Deadzone)</span>
+            <span class="text-xs font-semibold text-neutral-800">{{ t('outer_deadzone') }}</span>
           </div>
           <span 
             v-if="activeProbeTarget === 'outer' && probeActive" 
             class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-neutral-900 text-white"
           >
-            探测目标
+            {{ t('probe_target_badge') }}
           </span>
         </div>
 
@@ -326,7 +327,7 @@ onBeforeUnmount(() => {
               type="button"
               @click.stop="adjustOuter(-step)"
               class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
-              title="减小外死区 [F6]"
+              :title="t('dec_outer_deadzone')"
             >
               <Minus class="w-3.5 h-3.5" />
               <span v-if="activeProbeTarget === 'outer'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F6</span>
@@ -335,14 +336,14 @@ onBeforeUnmount(() => {
               type="button"
               @click.stop="adjustOuter(step)"
               class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
-              title="增大外死区 [F7]"
+              :title="t('inc_outer_deadzone')"
             >
               <Plus class="w-3.5 h-3.5" />
               <span v-if="activeProbeTarget === 'outer'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F7</span>
             </button>
           </div>
         </div>
-        <p class="text-[10px] text-neutral-400 mt-1">推杆到达此阈值后视口角速度达到游戏上限</p>
+        <p class="text-[10px] text-neutral-400 mt-1">{{ t('outer_deadzone_desc') }}</p>
       </div>
     </div>
 
@@ -369,7 +370,7 @@ onBeforeUnmount(() => {
           :style="{ width: `${safeInner * 100}%` }"
         >
           <span v-if="safeInner > 0.08" class="text-[9px] text-neutral-500 font-mono font-medium truncate px-1">
-            盲区
+            {{ t('blind_zone') }}
           </span>
         </div>
 
@@ -382,7 +383,7 @@ onBeforeUnmount(() => {
           }"
         >
           <span v-if="activeSpan > 0.15" class="text-[10px] text-white/90 font-mono font-medium tracking-wider truncate px-1">
-            检测范围 {{ (activeSpan * 100).toFixed(1) }}%
+            {{ t('detection_range_bar') }} {{ (activeSpan * 100).toFixed(1) }}%
           </span>
         </div>
 
@@ -392,7 +393,7 @@ onBeforeUnmount(() => {
           :style="{ width: `${(1.0 - safeOuter) * 100}%` }"
         >
           <span v-if="(1.0 - safeOuter) > 0.08" class="text-[9px] text-neutral-500 font-mono font-medium truncate px-1">
-            饱和区
+            {{ t('saturation_zone') }}
           </span>
         </div>
 
@@ -429,12 +430,12 @@ onBeforeUnmount(() => {
               : 'border-neutral-700'
           ]"
           :style="{ left: `${safeInner * 100}%` }"
-          title="内死区操控点 (拖动调节)"
+          :title="t('inner_deadzone')"
         >
           <div class="w-2.5 h-2.5 rounded-full bg-neutral-900"></div>
           <!-- Floating Label -->
           <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-neutral-600 whitespace-nowrap">
-            内:{{ (safeInner * 100).toFixed(0) }}%
+            {{ t('blind_zone') }}:{{ (safeInner * 100).toFixed(0) }}%
           </div>
         </div>
 
@@ -448,12 +449,12 @@ onBeforeUnmount(() => {
               : 'border-neutral-700'
           ]"
           :style="{ left: `${safeOuter * 100}%` }"
-          title="外死区操控点 (拖动调节)"
+          :title="t('outer_deadzone')"
         >
           <div class="w-2.5 h-2.5 rounded-full bg-neutral-900"></div>
           <!-- Floating Label -->
           <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-neutral-600 whitespace-nowrap">
-            外:{{ (safeOuter * 100).toFixed(0) }}%
+            {{ t('saturation_zone') }}:{{ (safeOuter * 100).toFixed(0) }}%
           </div>
         </div>
       </div>
@@ -464,9 +465,9 @@ onBeforeUnmount(() => {
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-700">
           <Target class="w-3.5 h-3.5" />
-          <span>预计摇杆采样各点 x 坐标分布</span>
+          <span>{{ t('predicted_distribution_title') }}</span>
           <span class="text-neutral-400 font-normal font-mono text-[11px]">
-            (共 {{ samplingPoints.length }} 个采样点)
+            ({{ t('total_points_count') }} {{ samplingPoints.length }} {{ t('points_suffix') }})
           </span>
         </div>
 
@@ -480,7 +481,7 @@ onBeforeUnmount(() => {
               class="px-2.5 py-1 rounded-md transition cursor-pointer"
               :class="rangeMode === 'active_range' ? 'bg-white text-neutral-900 shadow-xs' : 'hover:text-neutral-900'"
             >
-              有效行程采样
+              {{ t('active_range_sampling') }}
             </button>
             <button
               type="button"
@@ -488,7 +489,7 @@ onBeforeUnmount(() => {
               class="px-2.5 py-1 rounded-md transition cursor-pointer"
               :class="rangeMode === 'full' ? 'bg-white text-neutral-900 shadow-xs' : 'hover:text-neutral-900'"
             >
-              全量程采样 (0~1)
+              {{ t('full_range_sampling') }}
             </button>
           </div>
 
@@ -502,7 +503,7 @@ onBeforeUnmount(() => {
               class="px-2 py-1 rounded-md transition cursor-pointer"
               :class="pointCount === cnt ? 'bg-white text-neutral-900 shadow-xs' : 'hover:text-neutral-900'"
             >
-              {{ cnt }}点
+              {{ cnt }}{{ t('points_suffix') }}
             </button>
           </div>
         </div>
@@ -535,20 +536,20 @@ onBeforeUnmount(() => {
               class="text-[9px] px-1 rounded bg-neutral-100 text-neutral-600 font-sans"
               :class="{ 'bg-neutral-800 text-neutral-300': hoveredPointIndex === idx }"
             >
-              内死区
+              {{ t('inner_deadzone') }}
             </span>
             <span 
               v-if="pt === safeOuter" 
               class="text-[9px] px-1 rounded bg-neutral-100 text-neutral-600 font-sans"
               :class="{ 'bg-neutral-800 text-neutral-300': hoveredPointIndex === idx }"
             >
-              外死区
+              {{ t('outer_deadzone') }}
             </span>
           </div>
         </div>
       </div>
       <p class="text-[11px] text-neutral-400">
-        提示：鼠标悬浮在采样点胶囊上可即时在轴轨上高亮定位。正式测定时系统将按上述 x 坐标依次推杆采样。
+        {{ t('hover_highlight_tip') }}
       </p>
     </div>
   </div>
