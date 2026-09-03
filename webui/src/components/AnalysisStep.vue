@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import CurveChart from './CurveChart.vue'
+import { t } from '../services/i18n'
 import { 
   BarChart3, 
   Download, 
@@ -271,7 +272,7 @@ function restartProbe() {
             <h3 class="text-sm font-semibold text-neutral-900">{{ currentTypeInfo.label }}</h3>
           </div>
           <div v-if="recalculatedAnalysis?.confidence !== undefined" class="px-2.5 py-0.5 bg-neutral-100 rounded-full text-xs font-mono text-neutral-700">
-            重算拟合置信度: <span class="font-bold text-neutral-900">{{ (recalculatedAnalysis.confidence * 100).toFixed(1) }}%</span>
+            {{ t('fit_confidence') }}: <span class="font-bold text-neutral-900">{{ (recalculatedAnalysis.confidence * 100).toFixed(1) }}%</span>
           </div>
         </div>
         <p class="text-xs text-neutral-500 leading-relaxed">{{ currentTypeInfo.desc }}</p>
@@ -290,8 +291,8 @@ function restartProbe() {
       <!-- Action & Export Tools -->
       <div class="lg:col-span-4 p-5 bg-white border border-neutral-200/80 rounded-xl flex flex-col justify-between space-y-3 shadow-xs">
         <div class="space-y-1">
-          <div class="text-xs font-semibold uppercase tracking-wider text-neutral-700">报告导出与共享</div>
-          <p class="text-[11px] text-neutral-400">导出的数据自动按当前选择的死区范围与重算归一化保存</p>
+          <div class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('export_and_share') }}</div>
+          <p class="text-[11px] text-neutral-400">{{ t('export_desc') }}</p>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
@@ -301,7 +302,7 @@ function restartProbe() {
             class="py-2 px-3 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 text-white text-xs rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer font-medium"
           >
             <Download class="w-3.5 h-3.5" />
-            <span>导出 JSON</span>
+            <span>{{ t('export_json') }}</span>
           </button>
           <button
             @click="downloadExport('csv')"
@@ -309,7 +310,7 @@ function restartProbe() {
             class="py-2 px-3 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 disabled:opacity-30 text-neutral-800 text-xs rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer font-medium"
           >
             <FileSpreadsheet class="w-3.5 h-3.5 text-neutral-700" />
-            <span>导出 CSV</span>
+            <span>{{ t('export_csv') }}</span>
           </button>
         </div>
 
@@ -319,7 +320,7 @@ function restartProbe() {
             class="text-xs text-neutral-600 hover:text-neutral-900 flex items-center space-x-1 cursor-pointer transition"
           >
             <Upload class="w-3.5 h-3.5" />
-            <span>导入历史报告...</span>
+            <span>{{ t('import_history') }}</span>
           </button>
           <input
             ref="fileInput"
@@ -334,7 +335,7 @@ function restartProbe() {
             class="text-xs text-neutral-400 hover:text-neutral-700 flex items-center space-x-1 cursor-pointer transition"
           >
             <RotateCcw class="w-3.5 h-3.5" />
-            <span>重新测定</span>
+            <span>{{ t('restart_probe') }}</span>
           </button>
         </div>
       </div>
@@ -350,7 +351,7 @@ function restartProbe() {
         <div class="flex items-center space-x-2">
           <Sliders class="w-4 h-4 text-neutral-800" />
           <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
-            死区节点选取与归一化重算 (Analysis Deadzone Filter)
+            {{ t('deadzone_filter_title') }}
           </h3>
         </div>
         <div class="flex items-center space-x-2">
@@ -359,14 +360,14 @@ function restartProbe() {
             @click="resetDeadzoneRange(0.0, 1.0)"
             class="px-2.5 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[11px] font-medium text-neutral-700 transition cursor-pointer"
           >
-            重置全量 (0% ~ 100%)
+            {{ t('reset_full') }}
           </button>
           <button
             type="button"
             @click="resetDeadzoneRange(sessionStore.config?.inner_deadzone || 0.0, sessionStore.config?.outer_deadzone || 1.0)"
             class="px-2.5 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[11px] font-medium text-neutral-700 transition cursor-pointer"
           >
-            应用标定死区 ({{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}% ~ {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%)
+            {{ t('apply_calibrated') }} ({{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}% ~ {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%)
           </button>
         </div>
       </div>
@@ -375,7 +376,7 @@ function restartProbe() {
         <!-- Inner Deadzone Slider -->
         <div class="space-y-2 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/70">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-medium text-neutral-700">内死区截取点 (Inner Cutoff)</label>
+            <label class="text-xs font-medium text-neutral-700">{{ t('inner_cutoff') }}</label>
             <span class="text-xs font-mono font-bold text-neutral-900">
               {{ (analysisInnerDeadzone * 100).toFixed(1) }}% ({{ analysisInnerDeadzone.toFixed(3) }})
             </span>
@@ -393,7 +394,7 @@ function restartProbe() {
         <!-- Outer Deadzone Slider -->
         <div class="space-y-2 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/70">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-medium text-neutral-700">外死区截取点 (Outer Cutoff)</label>
+            <label class="text-xs font-medium text-neutral-700">{{ t('outer_cutoff') }}</label>
             <span class="text-xs font-mono font-bold text-neutral-900">
               {{ (analysisOuterDeadzone * 100).toFixed(1) }}% ({{ analysisOuterDeadzone.toFixed(3) }})
             </span>
@@ -411,11 +412,11 @@ function restartProbe() {
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-mono text-neutral-500 pt-1 border-t border-neutral-100 gap-1">
         <div>
-          选中行程: <span class="font-bold text-neutral-900">{{ (analysisInnerDeadzone * 100).toFixed(1) }}% ~ {{ (analysisOuterDeadzone * 100).toFixed(1) }}%</span>
-          （包含 <span class="font-bold text-neutral-900">{{ recalculatedPoints.filter(p => p.in_analysis_range).length }}</span> / {{ recalculatedPoints.length }} 个测量节点）
+          {{ t('selected_range') }}: <span class="font-bold text-neutral-900">{{ (analysisInnerDeadzone * 100).toFixed(1) }}% ~ {{ (analysisOuterDeadzone * 100).toFixed(1) }}%</span>
+          （{{ t('nodes_included') }} <span class="font-bold text-neutral-900">{{ recalculatedPoints.filter(p => p.in_analysis_range).length }}</span> / {{ recalculatedPoints.length }} {{ t('total_nodes') }}）
         </div>
         <div v-if="recalculatedPoints.filter(p => p.in_analysis_range && p.valid).length > 0">
-          有效重算区间: {{ Math.min(...recalculatedPoints.filter(p => p.in_analysis_range && p.valid && p.velocity_px_s !== null).map(p => p.velocity_px_s!)).toFixed(1) }} px/s
+          {{ t('effective_range') }}: {{ Math.min(...recalculatedPoints.filter(p => p.in_analysis_range && p.valid && p.velocity_px_s !== null).map(p => p.velocity_px_s!)).toFixed(1) }} px/s
           ➔ {{ Math.max(...recalculatedPoints.filter(p => p.in_analysis_range && p.valid && p.velocity_px_s !== null).map(p => p.velocity_px_s!)).toFixed(1) }} px/s
         </div>
       </div>
@@ -426,16 +427,16 @@ function restartProbe() {
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-2">
           <BarChart3 class="w-3.5 h-3.5 text-neutral-700" />
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">手柄响应曲线图表 (重算归一化)</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('chart_title') }}</h3>
         </div>
         <div class="flex items-center space-x-4 text-xs font-mono text-neutral-500">
           <span class="flex items-center space-x-1.5">
             <span class="w-3 h-0.5 bg-neutral-400 inline-block"></span>
-            <span>截取内死区: {{ (analysisInnerDeadzone * 100).toFixed(1) }}%</span>
+            <span>{{ t('inner_cutoff') }}: {{ (analysisInnerDeadzone * 100).toFixed(1) }}%</span>
           </span>
           <span class="flex items-center space-x-1.5">
             <span class="w-3 h-0.5 bg-neutral-700 inline-block"></span>
-            <span>截取外死区: {{ (analysisOuterDeadzone * 100).toFixed(1) }}%</span>
+            <span>{{ t('outer_cutoff') }}: {{ (analysisOuterDeadzone * 100).toFixed(1) }}%</span>
           </span>
         </div>
       </div>
@@ -450,16 +451,16 @@ function restartProbe() {
       </div>
       <div v-else class="h-64 flex flex-col items-center justify-center text-neutral-400 text-xs space-y-2">
         <Activity class="w-7 h-7 text-neutral-300" />
-        <span>暂无测定数据，请在步骤 3 中启动测定</span>
+        <span>{{ t('no_data_hint') }}</span>
       </div>
     </div>
 
     <!-- Data Table Breakdown -->
     <div v-if="recalculatedPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
       <div class="flex items-center justify-between">
-        <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">各采样点详表 (含重新归一化)</span>
+        <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('table_title') }}</span>
         <span v-if="noise" class="text-xs font-mono text-neutral-500">
-          校准静止噪底: X={{ noise.floor_x }} px/s, Y={{ noise.floor_y }} px/s
+          Noise Floor: X={{ noise.floor_x }} px/s, Y={{ noise.floor_y }} px/s
         </span>
       </div>
 
@@ -468,13 +469,13 @@ function restartProbe() {
           <thead class="bg-neutral-100 text-neutral-600 sticky top-0">
             <tr>
               <th class="p-2">#</th>
-              <th class="p-2">摇杆输入 (X)</th>
-              <th class="p-2">角速度 (px/s)</th>
-              <th class="p-2">重算归一化</th>
-              <th class="p-2">稳定性</th>
-              <th class="p-2">覆盖率</th>
-              <th class="p-2">采样尝试</th>
-              <th class="p-2">状态</th>
+              <th class="p-2">{{ t('stick_input') }}</th>
+              <th class="p-2">{{ t('angular_velocity') }}</th>
+              <th class="p-2">{{ t('normalized_speed') }}</th>
+              <th class="p-2">{{ t('stability') }}</th>
+              <th class="p-2">{{ t('coverage') }}</th>
+              <th class="p-2">{{ t('attempts') }}</th>
+              <th class="p-2">{{ t('status') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-neutral-100 text-neutral-800">
@@ -494,25 +495,25 @@ function restartProbe() {
               </td>
               <td class="p-2">{{ Math.round(pt.stability * 100) }}%</td>
               <td class="p-2">{{ Math.round(((pt as any).coverage ?? pt.stability) * 100) }}%</td>
-              <td class="p-2 text-neutral-500">{{ pt.attempts }} 次</td>
+              <td class="p-2 text-neutral-500">{{ pt.attempts }}</td>
               <td class="p-2">
                 <span
                   v-if="!pt.valid"
                   class="text-rose-600 font-medium"
                 >
-                  失稳
+                  {{ t('status_invalid') }}
                 </span>
                 <span
                   v-else-if="pt.in_analysis_range"
                   class="text-neutral-900 font-medium"
                 >
-                  有效 (范围内)
+                  {{ t('status_valid') }}
                 </span>
                 <span
                   v-else
                   class="text-neutral-400"
                 >
-                  死区截取外
+                  {{ t('status_outside') }}
                 </span>
               </td>
             </tr>

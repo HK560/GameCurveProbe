@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { Monitor, Square, CheckCircle2 } from 'lucide-vue-next'
 import { soundSynth } from '../services/sound'
+import { t } from '../services/i18n'
 
 const sessionStore = useSessionStore()
 
@@ -59,10 +60,10 @@ async function cancelMeasurement() {
               <Monitor class="w-7 h-7 animate-pulse" />
             </div>
             <h2 class="text-lg font-bold text-neutral-900">
-              请切回游戏画面！
+              {{ t('countdown_title') }}
             </h2>
             <p class="text-xs text-neutral-500 leading-relaxed px-2">
-              测定任务已启动。请在倒计时结束前切换至游戏窗口并保持游戏为前台聚焦状态。
+              {{ t('countdown_desc') }}
             </p>
           </div>
 
@@ -81,7 +82,7 @@ async function cancelMeasurement() {
               </span>
             </div>
             <span class="text-[11px] font-mono text-neutral-400 mt-3 font-medium">
-              倒计时 {{ remainingSeconds }} / {{ totalSeconds }}s
+              {{ t('countdown_seconds') }} {{ remainingSeconds }} / {{ totalSeconds }}s
             </span>
           </div>
 
@@ -93,13 +94,13 @@ async function cancelMeasurement() {
               class="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer"
             >
               <Square class="w-3.5 h-3.5 fill-current text-rose-600" />
-              <span>放弃/中止</span>
+              <span>{{ t('abort_measurement') }}</span>
             </button>
             <div
               class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-900 text-white text-xs font-semibold flex items-center justify-center space-x-2 shadow-sm"
             >
               <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
-              <span>请切回游戏</span>
+              <span>{{ t('please_switch_back') }}</span>
             </div>
           </div>
         </div>
