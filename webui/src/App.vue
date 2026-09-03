@@ -90,6 +90,8 @@ function handleKeyDown(event: KeyboardEvent) {
 
   const startKey = (cfg.hotkey_start || 'F9').toUpperCase()
   const stopKey = (cfg.hotkey_stop || 'F10').toUpperCase()
+  const dzIncKey = (cfg.hotkey_dz_inc || 'F7').toUpperCase()
+  const dzDecKey = (cfg.hotkey_dz_dec || 'F6').toUpperCase()
 
   const pressedKey = event.key.toUpperCase()
 
@@ -109,6 +111,50 @@ function handleKeyDown(event: KeyboardEvent) {
         soundSynth.playStopSound()
       }
     }
+  } else if (pressedKey === dzIncKey || (dzIncKey === 'F7' && event.key === 'F7')) {
+    event.preventDefault()
+    adjustDeadzoneInFrontend(1)
+  } else if (pressedKey === dzDecKey || (dzDecKey === 'F6' && event.key === 'F6')) {
+    event.preventDefault()
+    adjustDeadzoneInFrontend(-1)
+  }
+}
+
+async function adjustDeadzoneInFrontend(direction: number) {
+  const cfg = sessionStore.config
+  if (!cfg) return
+  const target = cfg.dz_target || 'inner'
+  const step = cfg.dz_step || 0.005
+  const delta = direction * step
+
+  if (cfg.auto_wake !== false) {
+    try {
+      await api.wakeController(cfg.wake_input || 'right_stick')
+    } catch {
+      // ignore
+    }
+  }
+
+  if (target === 'inner') {
+    const safeOuter = cfg.outer_deadzone ?? 0.95
+    const inner = cfg.inner_deadzone ?? 0.05
+    const newInner = Math.round(Math.max(0.0, Math.min(safeOuter - 0.01, inner + delta)) * 10000) / 10000
+    await sessionStore.updateConfig({ inner_deadzone: newInner })
+    if (sessionStore.probe?.active) {
+      await sessionStore.updateDeadzoneProbe(newInner)
+    }
+  } else {
+    const safeInner = cfg.inner_deadzone ?? 0.05
+    const outer = cfg.outer_deadzone ?? 0.95
+    const newOuter = Math.round(Math.max(safeInner + 0.01, Math.min(1.0, outer + delta)) * 10000) / 10000
+    await sessionStore.updateConfig({ outer_deadzone: newOuter })
+    if (sessionStore.probe?.active) {
+      await sessionStore.updateDeadzoneProbe(newOuter)
+    }
+  }
+
+  if (cfg.sound_enabled !== false) {
+    soundSynth.playTestSound()
   }
 }
 
