@@ -14,5 +14,6 @@ htmlcov/
 .idea/
 build/
 dist/
+src/gamecurveprobe/web_dist/
 node_modules/
 *.tsbuildinfo

@@ -113,6 +113,17 @@ def test_health_reports_real_controller_readiness(client, context, monkeypatch) 
     assert response.json()["controller_ready"] is False
 
 
+def test_quit_endpoint_accepts_an_authenticated_local_request(client, auth_headers, context) -> None:
+    shutdown_requested = []
+    context.shutdown_callback = lambda: shutdown_requested.append(True)
+
+    response = client.post("/api/app/quit", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "shutting_down"}
+    assert shutdown_requested == [True]
+
+
 def test_session_exposes_latest_idle_noise_calibration(client, auth_headers, context) -> None:
     context.session.set_noise(NoiseResult(1.0, 2.0, 20, 0.8))
 

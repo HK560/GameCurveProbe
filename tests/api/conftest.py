@@ -7,7 +7,7 @@ from gamecurveprobe.api.server import create_app
 from gamecurveprobe.backends.capture.stub import StubCaptureBackend
 from gamecurveprobe.backends.controller.stub import StubControllerBackend
 from gamecurveprobe.context import AppContext
-from gamecurveprobe.events import EventHub
+from gamecurveprobe.events import EventHub, publish_job_event
 from gamecurveprobe.services.capture_service import CaptureService
 from gamecurveprobe.services.controller_service import ControllerService
 from gamecurveprobe.services.deadzone_probe_service import DeadzoneProbeService
@@ -40,7 +40,7 @@ def context(token: str) -> AppContext:
     capture = CaptureService({"wgc": capture_backend, "dxcam": capture_backend})
     session = SessionService()
     events = EventHub()
-    jobs = JobManager(publish=lambda ev: events.publish("job_event", ev))
+    jobs = JobManager(publish=lambda ev: publish_job_event(events, ev))
     windows = WindowService()
     probe = DeadzoneProbeService(controller)
     measurement = MeasurementRunner(

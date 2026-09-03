@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted } from 'vue'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useSessionStore } from './stores/session'
+import { api } from './services/api'
+import { initiateApplicationShutdown } from './services/appShutdown'
 import { ws } from './services/ws'
 import CaptureStep from './components/CaptureStep.vue'
 import DeadzoneStep from './components/DeadzoneStep.vue'
@@ -14,11 +16,13 @@ import {
   BarChart3, 
   Gamepad2, 
   Wifi, 
-  WifiOff 
+  WifiOff,
+  Power
 } from 'lucide-vue-next'
 
 const connectionStore = useConnectionStore()
 const sessionStore = useSessionStore()
+const isQuitting = ref(false)
 
 const steps = [
   { id: 1, title: '窗口与抓图', desc: '选择游戏及特征ROI区域', icon: Monitor },
@@ -26,6 +30,22 @@ const steps = [
   { id: 3, title: '曲线测定', desc: '自动化稳态旋转测定', icon: Activity },
   { id: 4, title: '分析与导出', desc: '拟合曲线与报告下载', icon: BarChart3 },
 ]
+
+async function quitApplication() {
+  if (!window.confirm('确定要退出 GameCurveProbe 吗？当前测定任务将被安全中止。')) {
+    return
+  }
+
+  isQuitting.value = true
+  initiateApplicationShutdown(
+    () => api.quitApplication(),
+    () => ws.close(),
+    () => window.close(),
+  )
+  window.setTimeout(() => {
+    isQuitting.value = false
+  }, 1000)
+}
 
 onMounted(async () => {
   await connectionStore.checkHealth()
@@ -71,6 +91,16 @@ onMounted(async () => {
               未抓取窗口
             </span>
           </div>
+          <button
+            type="button"
+            :disabled="isQuitting"
+            title="退出并关闭 GameCurveProbe"
+            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-rose-700/60 bg-rose-950/40 text-xs font-semibold text-rose-300 transition hover:bg-rose-900/60 hover:text-rose-100 disabled:cursor-wait disabled:opacity-60"
+            @click="quitApplication"
+          >
+            <Power class="w-3.5 h-3.5" />
+            <span>{{ isQuitting ? '正在退出…' : '退出程序' }}</span>
+          </button>
         </div>
       </div>
     </header>
