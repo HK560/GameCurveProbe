@@ -65,6 +65,8 @@ class ProbeConfig:
     hotkey_start: str = "F9"
     hotkey_stop: str = "F10"
     sound_enabled: bool = True
+    wake_input: str = "right_stick"
+    auto_wake: bool = True
 
     @classmethod
     def from_preset(cls, name: str) -> "ProbeConfig":

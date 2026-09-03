@@ -22,6 +22,8 @@ export interface ProbeConfig {
   hotkey_start?: string
   hotkey_stop?: string
   sound_enabled?: boolean
+  wake_input?: string
+  auto_wake?: boolean
 }
 
 export interface RoiRect {

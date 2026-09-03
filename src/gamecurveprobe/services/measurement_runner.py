@@ -62,6 +62,20 @@ class MeasurementRunner:
             "message": f"稳态测定启动: 共 {len(values)} 个采样点 (Settle: {config.settle_ms}ms, Sample: {config.sample_ms}ms)",
         })
 
+        if config.auto_wake and self._controller.is_enabled():
+            publish({
+                "phase": "stage_start",
+                "total_points": len(values),
+                "current_point": 0,
+                "input_value": 0.0,
+                "message": f"自动触发唤醒游戏画面 ({config.wake_input})...",
+            })
+            try:
+                self._controller.wake(config.wake_input, duration_seconds=0.5)
+                self._interruptible_wait(0.6, cancel_event)
+            except Exception:
+                pass
+
         try:
             for index, input_value in enumerate(values, start=1):
                 self._check_cancel(cancel_event)

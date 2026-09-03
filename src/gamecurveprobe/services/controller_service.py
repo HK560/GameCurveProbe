@@ -48,13 +48,29 @@ class ControllerService:
 
     def wake(self, input_name: str, duration_seconds: float = 0.5) -> None:
         with self._lock:
-            self.acquire("wake")
+            if not self._enabled:
+                return
+            is_standalone = self._owner is None
+            if is_standalone:
+                self.acquire("wake")
+
             try:
                 self._backend.press_wake_input(input_name)
             except Exception:
-                self.release("wake")
+                if is_standalone:
+                    self.release("wake")
                 raise
-            self._wake_timer = threading.Timer(duration_seconds, self._release_wake, args=(input_name,))
+
+            def release_cb():
+                with self._lock:
+                    try:
+                        self._backend.release_wake_input(input_name)
+                    finally:
+                        self._wake_timer = None
+                        if is_standalone:
+                            self.release("wake")
+
+            self._wake_timer = threading.Timer(duration_seconds, release_cb)
             self._wake_timer.daemon = True
             self._wake_timer.start()
 
