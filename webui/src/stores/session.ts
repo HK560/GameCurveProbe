@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '../services/api'
 import { ws } from '../services/ws'
+import { t } from '../services/i18n'
 import type {
   CaptureInfo,
   CaptureHealth,
@@ -153,7 +154,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function startMeasurement(rangeMode?: RangeMode) {
     livePoints.value = []
-    addLog('action', '正在启动稳态响应测定流程...')
+    addLog('action', t('log_starting_measurement'))
     const job = await api.startMeasurement(rangeMode)
     internalActiveJob.value = job
     if (session.value) {
@@ -172,7 +173,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function cancelJob(jobId: string) {
-    addLog('action', '用户发起中止操作，正在重置手柄回中...')
+    addLog('action', t('log_canceling_measurement'))
     const job = await api.cancelJob(jobId)
     if (internalActiveJob.value?.id === jobId) {
       internalActiveJob.value = job
@@ -208,20 +209,20 @@ export const useSessionStore = defineStore('session', () => {
       }
       if (data.phase) {
         if (data.phase === 'stage_start') {
-          addLog('info', data.message || `稳态测定启动: 共 ${data.total_points} 个采样点`)
+          addLog('info', data.message || `${t('log_probe_started')}: ${t('total_points_count')} ${data.total_points} ${t('points_suffix')}`)
         } else if (data.phase === 'point_settle') {
-          addLog('settle', data.message || `采样点 [${data.current_point}/${data.total_points}] 推杆并等待稳定...`)
+          addLog('settle', data.message || `[${data.current_point}/${data.total_points}] ${t('log_point_settle')}`)
         } else if (data.phase === 'point_sampling') {
-          addLog('sampling', data.message || `采样点 [${data.current_point}/${data.total_points}] 光流跟踪采样中...`)
+          addLog('sampling', data.message || `[${data.current_point}/${data.total_points}] ${t('log_point_sampling')}`)
         } else if (data.phase === 'point_retry') {
-          addLog('warn', data.message || `采样点 [${data.current_point}/${data.total_points}] 稳定性不足触发复测...`)
+          addLog('warn', data.message || `[${data.current_point}/${data.total_points}] ${t('log_point_retry')}`)
         } else if (data.phase === 'point_done') {
-          addLog('success', data.message || `采样点 [${data.current_point}/${data.total_points}] 测定完成`)
+          addLog('success', data.message || `[${data.current_point}/${data.total_points}] ${t('log_point_done')}`)
           if (data.point) {
             livePoints.value.push(data.point)
           }
         } else if (data.phase === 'stage_completed') {
-          addLog('info', data.message || '全测定流程完成')
+          addLog('info', data.message || t('log_stage_completed'))
         }
       } else if (data.message) {
         addLog('info', data.message)
@@ -238,7 +239,7 @@ export const useSessionStore = defineStore('session', () => {
         if (session.value) {
           session.value.last_result = event.payload.result
         }
-        addLog('success', '稳态测定任务顺利完成，曲线分析已就绪')
+        addLog('success', t('log_measurement_success'))
       } else if (event.payload.result && event.payload.job?.kind === 'idle_noise') {
         internalNoise.value = event.payload.result
         if (session.value) {
@@ -253,9 +254,9 @@ export const useSessionStore = defineStore('session', () => {
         session.value.active_job = null
       }
       if (event.type === 'job_canceled') {
-        addLog('warn', '测定任务已中止，手柄已安全回中')
+        addLog('warn', t('log_measurement_canceled'))
       } else {
-        addLog('error', `任务异常失败: ${event.payload?.error || '未知错误'}`)
+        addLog('error', `${t('log_task_failed')}: ${event.payload?.error || t('unknown_error')}`)
       }
     } else if (event.type === 'capture_changed' && event.payload?.capture) {
       internalCapture.value = event.payload.capture

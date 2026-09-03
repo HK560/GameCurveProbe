@@ -22,7 +22,10 @@ import {
 } from 'lucide-vue-next'
 import type { RangeMode } from '../types/api'
 
+import CountdownModal from './CountdownModal.vue'
+
 const sessionStore = useSessionStore()
+const showCountdown = ref(false)
 const rangeMode = ref<RangeMode>(sessionStore.config?.range_mode || 'full')
 
 // Point Count Presets & Custom Input
@@ -90,13 +93,13 @@ const hasCompleted = computed(() => !!lastResult.value && !isRunning.value)
 const currentPhase = computed(() => progressData.value?.phase || (isRunning.value ? 'running' : 'idle'))
 const phaseText = computed(() => {
   switch (currentPhase.value) {
-    case 'stage_start': return '测定启动准备'
-    case 'point_settle': return '摇杆推杆·等待稳定'
-    case 'point_sampling': return '特征追踪·光流采样'
-    case 'point_retry': return '失稳自动复测中'
-    case 'point_done': return '单点采样就绪'
-    case 'stage_completed': return '全流程完成·数据分析中'
-    default: return isRunning.value ? '稳态测定进行中' : '等待启动'
+    case 'stage_start': return t('phase_stage_start')
+    case 'point_settle': return t('phase_point_settle')
+    case 'point_sampling': return t('phase_point_sampling')
+    case 'point_retry': return t('phase_point_retry')
+    case 'point_done': return t('phase_point_done')
+    case 'stage_completed': return t('phase_stage_completed')
+    default: return isRunning.value ? t('phase_running') : t('phase_idle')
   }
 })
 
@@ -195,8 +198,9 @@ async function startMeasurement() {
   try {
     await applyConfig()
     await sessionStore.startMeasurement(rangeMode.value)
+    showCountdown.value = true
   } catch (err: any) {
-    errorMessage.value = err.message || '启动测定失败，请确认手柄驱动已就绪'
+    errorMessage.value = err.message || t('start_measurement_err')
   }
 }
 
@@ -255,9 +259,9 @@ function proceedToAnalysis() {
               :disabled="isRunning"
               class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
             >
-              <option value="9">9 点 (~15s)</option>
-              <option value="17">17 点 (~30s)</option>
-              <option value="33">33 点 (~60s)</option>
+              <option value="9">9 {{ t('points_suffix') }} (~15s)</option>
+              <option value="17">17 {{ t('points_suffix') }} (~30s)</option>
+              <option value="33">33 {{ t('points_suffix') }} (~60s)</option>
               <option value="custom">{{ t('custom_points') }}</option>
             </select>
             <div v-if="pointCountPreset === 'custom'" class="flex items-center space-x-2 pt-0.5">
@@ -267,7 +271,7 @@ function proceedToAnalysis() {
                 :disabled="isRunning"
                 min="3"
                 max="100"
-                placeholder="例如 25"
+                :placeholder="`25 ${t('points_suffix')}`"
                 class="w-full bg-white border border-neutral-300 rounded-lg px-2.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
               />
               <span class="text-xs font-mono text-neutral-500 shrink-0">{{ t('points_unit') }}</span>
@@ -369,7 +373,7 @@ function proceedToAnalysis() {
           <div class="flex items-center justify-between border-b border-neutral-100 pb-2.5">
             <div class="flex items-center space-x-2">
               <Camera class="w-3.5 h-3.5 text-neutral-700" />
-              <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">实时画面与追踪监控</span>
+              <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('live_viewport_title') }}</span>
             </div>
             <div class="flex items-center space-x-2 text-xs">
               <span
@@ -377,7 +381,7 @@ function proceedToAnalysis() {
                 :class="sessionStore.livePreviewUrl ? 'bg-emerald-500' : 'bg-neutral-400'"
               ></span>
               <span class="text-neutral-500 font-mono text-[11px]">
-                {{ sessionStore.capture ? `${sessionStore.capture.width}×${sessionStore.capture.height} @ ${sessionStore.capture.target_fps}Hz` : '画面未就绪' }}
+                {{ sessionStore.capture ? `${sessionStore.capture.width}×${sessionStore.capture.height} @ ${sessionStore.capture.target_fps}Hz` : t('no_signal_preview') }}
               </span>
             </div>
           </div>
@@ -405,15 +409,15 @@ function proceedToAnalysis() {
 
                 <div class="absolute -top-6 left-0 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-neutral-900 text-white border border-neutral-700 shadow-sm flex items-center space-x-1 whitespace-nowrap">
                   <Crosshair class="w-2.5 h-2.5" />
-                  <span>追踪ROI: {{ sessionStore.roi?.width }}×{{ sessionStore.roi?.height }}</span>
+                  <span>ROI: {{ sessionStore.roi?.width }}×{{ sessionStore.roi?.height }}</span>
                 </div>
               </div>
             </template>
 
             <div v-else class="text-center p-6 space-y-2 text-neutral-500">
               <Camera class="w-7 h-7 mx-auto stroke-1 opacity-50" />
-              <p class="text-xs">暂未获取到实时画面</p>
-              <p class="text-[11px] text-neutral-400">请先在「窗口与抓图」步骤绑定游戏窗口</p>
+              <p class="text-xs">{{ t('no_signal_preview') }}</p>
+              <p class="text-[11px] text-neutral-400">{{ t('frame_not_ready_hint') }}</p>
             </div>
           </div>
 
@@ -421,15 +425,15 @@ function proceedToAnalysis() {
           <div class="flex items-center justify-between text-xs text-neutral-500 pt-1 font-mono">
             <div class="flex items-center space-x-2">
               <span class="px-2 py-0.5 rounded bg-neutral-100 text-[11px] text-neutral-700">
-                后端: {{ sessionStore.capture?.backend?.toUpperCase() || 'NONE' }}
+                {{ t('backend_label') }}: {{ sessionStore.capture?.backend?.toUpperCase() || 'NONE' }}
               </span>
               <span class="text-neutral-300">|</span>
               <span class="text-[11px] text-neutral-500">
-                安全遮挡防护: {{ sessionStore.capture?.occlusion_safe ? '开启' : '关闭' }}
+                {{ t('occlusion_safe_label') }}: {{ sessionStore.capture?.occlusion_safe ? t('enabled_label') : t('disabled_label') }}
               </span>
             </div>
             <div class="text-right text-neutral-900 font-medium text-[11px]">
-              推杆状态: {{ (currentInputValue * 100).toFixed(1) }}% (X+)
+              {{ t('stick_push_state') }}: {{ (currentInputValue * 100).toFixed(1) }}% (X+)
             </div>
           </div>
         </div>
@@ -447,7 +451,7 @@ function proceedToAnalysis() {
                 <Activity class="w-4 h-4" :class="{ 'animate-pulse text-neutral-900': isRunning }" />
               </div>
               <div>
-                <h4 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">当前测定进度</h4>
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('current_progress') }}</h4>
                 <p class="text-[11px] text-neutral-400 font-mono">{{ phaseText }}</p>
               </div>
             </div>
@@ -469,10 +473,10 @@ function proceedToAnalysis() {
           </div>
 
           <div class="flex items-center justify-between text-xs font-mono text-neutral-600 pt-0.5">
-            <span>当前输入推杆: {{ (currentInputValue * 100).toFixed(1) }}%</span>
+            <span>{{ t('stick_input') }}: {{ (currentInputValue * 100).toFixed(1) }}%</span>
             <span class="flex items-center space-x-1.5" :class="isRunning ? 'text-neutral-900 font-medium' : 'text-neutral-400'">
               <Clock v-if="isRunning" class="w-3 h-3 animate-spin" />
-              <span>{{ isRunning ? '测定运行中...' : '已就绪' }}</span>
+              <span>{{ isRunning ? t('running_status') : t('ready_status') }}</span>
             </span>
           </div>
         </div>
@@ -494,9 +498,9 @@ function proceedToAnalysis() {
                 @click="autoScroll = !autoScroll"
                 class="px-2 py-0.5 rounded text-[11px] font-mono transition cursor-pointer border flex items-center space-x-1"
                 :class="autoScroll ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-neutral-100 border-neutral-200 text-neutral-600'"
-                title="切换自动滚屏"
+                :title="t('auto_scroll_btn')"
               >
-                <span>滚动</span>
+                <span>{{ t('auto_scroll_btn') }}</span>
                 <span class="w-1.5 h-1.5 rounded-full" :class="autoScroll ? 'bg-emerald-400' : 'bg-neutral-400'"></span>
               </button>
 
@@ -529,7 +533,7 @@ function proceedToAnalysis() {
               v-if="sessionStore.measurementLogs.length === 0"
               class="h-full flex items-center justify-center text-neutral-500 text-xs text-center select-none"
             >
-              点击「开始稳态测定」，实时诊断日志将在此输出...
+              {{ t('click_to_start_log_hint') }}
             </div>
 
             <div
@@ -555,7 +559,7 @@ function proceedToAnalysis() {
             class="absolute bottom-6 right-6 bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] px-2.5 py-1 rounded-full shadow border border-neutral-700 flex items-center space-x-1 cursor-pointer transition"
           >
             <ArrowDown class="w-3 h-3" />
-            <span>最新</span>
+            <span>{{ t('scroll_latest') }}</span>
           </button>
         </div>
       </div>
@@ -567,14 +571,14 @@ function proceedToAnalysis() {
         <div class="flex items-center space-x-2">
           <CheckCircle2 class="w-4 h-4 text-neutral-900" />
           <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">
-            采样点测定记录
+            {{ t('sampling_record_title') }}
             <span class="text-neutral-400 font-normal">
-              ({{ displayPoints.length }} / {{ totalPoints }} 点{{ isRunning ? ' · 采集中' : '' }})
+              ({{ displayPoints.length }} / {{ totalPoints }} {{ t('points_suffix') }}{{ isRunning ? ' · ' + t('realtime_appending') : '' }})
             </span>
           </span>
         </div>
         <span class="text-[11px] text-neutral-400 font-mono">
-          {{ isRunning ? '正在实时追加数据...' : `测定完成: ${lastResult?.measured_at || '刚刚'}` }}
+          {{ isRunning ? t('realtime_appending') : `${t('measurement_completed')}: ${lastResult?.measured_at || t('just_now')}` }}
         </span>
       </div>
 
@@ -640,5 +644,12 @@ function proceedToAnalysis() {
         <ArrowRight class="w-4 h-4" />
       </button>
     </div>
+
+    <!-- Countdown Modal -->
+    <CountdownModal
+      v-if="showCountdown"
+      @close="showCountdown = false"
+      @cancel="cancelMeasurement"
+    />
   </div>
 </template>

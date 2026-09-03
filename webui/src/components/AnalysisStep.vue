@@ -105,7 +105,7 @@ const recalculatedAnalysis = computed(() => {
     return {
       curve_type: 'undetermined',
       confidence: 0.0,
-      metrics: { note: '选取范围节点不足 (<3)' },
+      metrics: { note: t('note_nodes_insufficient') },
     }
   }
 
@@ -161,28 +161,28 @@ const recalculatedAnalysis = computed(() => {
   }
 })
 
-const curveTypeLabels: Record<string, { label: string; desc: string }> = {
+const curveTypeLabels = computed<Record<string, { label: string; desc: string }>>(() => ({
   linear: {
-    label: '线性曲线 (Linear)',
-    desc: '摇杆响应速度随推杆行程严格呈正比线性增加，手感均匀可预测。',
+    label: t('model_linear_label'),
+    desc: t('model_linear_desc'),
   },
   exponential: {
-    label: '指数加速曲线 (Exponential)',
-    desc: '微推段响应平缓柔和易微调，大推段加速明显，适合兼顾瞄准与大范围转向。',
+    label: t('model_exponential_label'),
+    desc: t('model_exponential_desc'),
   },
   s_curve: {
-    label: 'S型平滑曲线 (S-Curve / Monotonic Logistic)',
-    desc: '死区过渡与外圈饱和段均平滑过渡，中部线性区间大。',
+    label: t('model_scurve_label'),
+    desc: t('model_scurve_desc'),
   },
   undetermined: {
-    label: '复杂/自定义曲线 (Undetermined)',
-    desc: '未能完美匹配单一经典响应模型，可能包含复杂的多段折线或游戏厂商特调加速。',
+    label: t('model_undetermined_label'),
+    desc: t('model_undetermined_desc'),
   },
-}
+}))
 
 const currentTypeInfo = computed(() => {
-  const t = recalculatedAnalysis.value?.curve_type || 'undetermined'
-  return curveTypeLabels[t] || curveTypeLabels.undetermined
+  const curType = recalculatedAnalysis.value?.curve_type || 'undetermined'
+  return curveTypeLabels.value[curType] || curveTypeLabels.value.undetermined
 })
 
 function saveBlob(blob: Blob, filename: string) {
@@ -249,9 +249,9 @@ async function handleFileSelected(e: Event) {
   try {
     const text = await file.text()
     await api.importResult(text)
-    importMessage.value = `成功导入报告：${file.name}`
+    importMessage.value = `${t('import_success')} ${file.name}`
   } catch (err: any) {
-    importMessage.value = `导入失败：${err.message || 'JSON 格式不兼容'}`
+    importMessage.value = `${t('import_failed')} ${err.message || t('json_parse_error')}`
   }
 }
 

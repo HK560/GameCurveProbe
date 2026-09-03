@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../services/api'
 import { ws } from '../services/ws'
+import { t } from '../services/i18n'
 
 export const useConnectionStore = defineStore('connection', () => {
   const token = ref<string>(api.getToken())
@@ -20,7 +21,7 @@ export const useConnectionStore = defineStore('connection', () => {
       error.value = null
     } catch (err: any) {
       connected.value = false
-      error.value = err.message || '无法连接到本地服务'
+      error.value = err.message || t('err_connect_failed')
     }
   }
 

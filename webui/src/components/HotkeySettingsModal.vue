@@ -147,7 +147,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
               <Keyboard class="w-4 h-4 text-neutral-800" />
-              <span class="font-medium text-neutral-900">Windows 全局快捷键</span>
+              <span class="font-medium text-neutral-900">{{ t('win_hotkeys_title') }}</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" v-model="hotkeyEnabled" class="sr-only peer" />
@@ -155,12 +155,12 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             </label>
           </div>
           <p class="text-[11px] text-neutral-500 leading-relaxed">
-            启用后在游戏前台界面无需切出窗口，即可通过热键启动或中止测定。
+            {{ t('win_hotkeys_desc') }}
           </p>
 
           <div v-if="hotkeyEnabled" class="grid grid-cols-2 gap-3 pt-1">
             <div class="space-y-1">
-              <label class="text-[11px] font-medium text-neutral-600">开始测定快捷键</label>
+              <label class="text-[11px] font-medium text-neutral-600">{{ t('hotkey_start_label') }}</label>
               <select
                 v-model="hotkeyStart"
                 class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
@@ -172,7 +172,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             </div>
 
             <div class="space-y-1">
-              <label class="text-[11px] font-medium text-neutral-600">停止测定快捷键</label>
+              <label class="text-[11px] font-medium text-neutral-600">{{ t('hotkey_stop_label') }}</label>
               <select
                 v-model="hotkeyStop"
                 class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
@@ -184,7 +184,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             </div>
 
             <div class="space-y-1">
-              <label class="text-[11px] font-medium text-neutral-600">死区微调加值快捷键 (+)</label>
+              <label class="text-[11px] font-medium text-neutral-600">{{ t('hotkey_dz_inc_label') }}</label>
               <select
                 v-model="hotkeyDzInc"
                 class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
@@ -196,7 +196,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             </div>
 
             <div class="space-y-1">
-              <label class="text-[11px] font-medium text-neutral-600">死区微调减值快捷键 (-)</label>
+              <label class="text-[11px] font-medium text-neutral-600">{{ t('hotkey_dz_dec_label') }}</label>
               <select
                 v-model="hotkeyDzDec"
                 class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
@@ -214,7 +214,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
               <Gamepad2 class="w-4 h-4 text-neutral-800" />
-              <span class="font-medium text-neutral-900">自动唤醒游戏</span>
+              <span class="font-medium text-neutral-900">{{ t('auto_wake_game') }}</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" v-model="autoWake" class="sr-only peer" />
@@ -222,48 +222,48 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             </label>
           </div>
           <p class="text-[11px] text-neutral-500 leading-relaxed">
-            开始测定前自动向游戏发送手柄按键脉冲（0.5秒），唤醒游戏并切换至手柄输入模式。
+            {{ t('auto_wake_desc') }}
           </p>
           <div v-if="autoWake" class="space-y-1 pt-1">
-            <label class="text-[11px] font-medium text-neutral-600">唤醒按键</label>
+            <label class="text-[11px] font-medium text-neutral-600">{{ t('wake_key') }}</label>
             <select
               v-model="wakeInput"
               class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
             >
-              <optgroup label="基础按键">
-                <option value="right_stick">RS（右摇杆按下，默认）</option>
-                <option value="left_stick">LS（左摇杆按下）</option>
-                <option value="a">A 键</option>
-                <option value="b">B 键</option>
-                <option value="x">X 键</option>
-                <option value="y">Y 键</option>
+              <optgroup :label="t('wake_group_basic')">
+                <option value="right_stick">{{ t('wake_opt_right_stick') }}</option>
+                <option value="left_stick">{{ t('wake_opt_left_stick') }}</option>
+                <option value="a">{{ t('wake_opt_a') }}</option>
+                <option value="b">{{ t('wake_opt_b') }}</option>
+                <option value="x">{{ t('wake_opt_x') }}</option>
+                <option value="y">{{ t('wake_opt_y') }}</option>
               </optgroup>
-              <optgroup label="肩键与扳机">
-                <option value="left_bumper">LB（左肩键）</option>
-                <option value="right_bumper">RB（右肩键）</option>
-                <option value="left_trigger">LT（左扳机 100%）</option>
-                <option value="right_trigger">RT（右扳机 100%）</option>
+              <optgroup :label="t('wake_group_bumper_trigger')">
+                <option value="left_bumper">{{ t('wake_opt_lb') }}</option>
+                <option value="right_bumper">{{ t('wake_opt_rb') }}</option>
+                <option value="left_trigger">{{ t('wake_opt_lt') }}</option>
+                <option value="right_trigger">{{ t('wake_opt_rt') }}</option>
               </optgroup>
-              <optgroup label="功能按键">
-                <option value="start">Start（菜单/开始键）</option>
-                <option value="back">Back（视图/选择键）</option>
-                <option value="guide">Guide（Xbox 西瓜键）</option>
+              <optgroup :label="t('wake_group_function')">
+                <option value="start">{{ t('wake_opt_start') }}</option>
+                <option value="back">{{ t('wake_opt_back') }}</option>
+                <option value="guide">{{ t('wake_opt_guide') }}</option>
               </optgroup>
-              <optgroup label="十字键 (D-Pad)">
-                <option value="dpad_up">十字键 上 (D-Pad Up)</option>
-                <option value="dpad_down">十字键 下 (D-Pad Down)</option>
-                <option value="dpad_left">十字键 左 (D-Pad Left)</option>
-                <option value="dpad_right">十字键 右 (D-Pad Right)</option>
+              <optgroup :label="t('wake_group_dpad')">
+                <option value="dpad_up">{{ t('wake_opt_dpad_up') }}</option>
+                <option value="dpad_down">{{ t('wake_opt_dpad_down') }}</option>
+                <option value="dpad_left">{{ t('wake_opt_dpad_left') }}</option>
+                <option value="dpad_right">{{ t('wake_opt_dpad_right') }}</option>
               </optgroup>
-              <optgroup label="摇杆微推脉冲">
-                <option value="left_stick_up">左摇杆 向上轻推</option>
-                <option value="left_stick_down">左摇杆 向下轻推</option>
-                <option value="left_stick_left">左摇杆 向左轻推</option>
-                <option value="left_stick_right">左摇杆 向右轻推</option>
-                <option value="right_stick_up">右摇杆 向上轻推</option>
-                <option value="right_stick_down">右摇杆 向下轻推</option>
-                <option value="right_stick_left">右摇杆 向左轻推</option>
-                <option value="right_stick_right">右摇杆 向右轻推</option>
+              <optgroup :label="t('wake_group_stick_pulse')">
+                <option value="left_stick_up">{{ t('wake_opt_ls_up') }}</option>
+                <option value="left_stick_down">{{ t('wake_opt_ls_down') }}</option>
+                <option value="left_stick_left">{{ t('wake_opt_ls_left') }}</option>
+                <option value="left_stick_right">{{ t('wake_opt_ls_right') }}</option>
+                <option value="right_stick_up">{{ t('wake_opt_rs_up') }}</option>
+                <option value="right_stick_down">{{ t('wake_opt_rs_down') }}</option>
+                <option value="right_stick_left">{{ t('wake_opt_rs_left') }}</option>
+                <option value="right_stick_right">{{ t('wake_opt_rs_right') }}</option>
               </optgroup>
             </select>
           </div>
@@ -275,7 +275,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
             <div class="flex items-center space-x-2">
               <Volume2 v-if="soundEnabled" class="w-4 h-4 text-neutral-800" />
               <VolumeX v-else class="w-4 h-4 text-neutral-400" />
-              <span class="font-medium text-neutral-900">操作音效提示</span>
+              <span class="font-medium text-neutral-900">{{ t('sound_effects') }}</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" v-model="soundEnabled" class="sr-only peer" />
@@ -284,7 +284,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
           </div>
 
           <p class="text-[11px] text-neutral-500 leading-relaxed">
-            启动升调双音、中止降调双音与完成三连音提示，保障游戏盲操作的明确反馈。
+            {{ t('sound_desc') }}
           </p>
 
           <div v-if="soundEnabled" class="flex items-center space-x-2 pt-1">
@@ -294,7 +294,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
               class="flex-1 bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-700 py-1.5 px-2 rounded-lg text-[11px] flex items-center justify-center space-x-1 transition cursor-pointer"
             >
               <Sparkles class="w-3 h-3 text-emerald-600" />
-              <span>试听启动音</span>
+              <span>{{ t('test_start_sound') }}</span>
             </button>
 
             <button
@@ -303,7 +303,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
               class="flex-1 bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-700 py-1.5 px-2 rounded-lg text-[11px] flex items-center justify-center space-x-1 transition cursor-pointer"
             >
               <Sparkles class="w-3 h-3 text-rose-600" />
-              <span>试听中止音</span>
+              <span>{{ t('test_stop_sound') }}</span>
             </button>
 
             <button
@@ -312,7 +312,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
               class="flex-1 bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-700 py-1.5 px-2 rounded-lg text-[11px] flex items-center justify-center space-x-1 transition cursor-pointer"
             >
               <Sparkles class="w-3 h-3 text-sky-600" />
-              <span>试听完成音</span>
+              <span>{{ t('test_complete_sound') }}</span>
             </button>
           </div>
         </div>
@@ -324,7 +324,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
           @click="emit('close')"
           class="px-4 py-1.5 rounded-lg text-xs font-medium text-neutral-600 hover:bg-neutral-200/60 transition cursor-pointer"
         >
-          取消
+          {{ t('cancel') }}
         </button>
         <button
           @click="saveSettings"
@@ -332,7 +332,7 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
           class="px-4 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-xs font-medium flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-50"
         >
           <Check v-if="saveSuccess" class="w-3.5 h-3.5 text-emerald-400" />
-          <span>{{ isSaving ? '保存中…' : saveSuccess ? '已保存' : '保存设置' }}</span>
+          <span>{{ isSaving ? t('saving') : saveSuccess ? t('saved') : t('save') }}</span>
         </button>
       </div>
     </div>
