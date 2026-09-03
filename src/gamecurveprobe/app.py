@@ -1,139 +1,112 @@
 from __future__ import annotations
 
 import argparse
-import ctypes
+import secrets
 import sys
+import threading
+import webbrowser
+from pathlib import Path
+from typing import Sequence
 
-from gamecurveprobe.backends.controller import VgamepadControllerBackend
-from gamecurveprobe.services.http_server import LocalHttpServer
-from gamecurveprobe.services.idle_noise_calibration_runner import IdleNoiseCalibrationRunner
-from gamecurveprobe.services.inner_deadzone_calibration_service import InnerDeadzoneCalibrationService
-from gamecurveprobe.services.motion_sampler import MotionSampler
+import uvicorn
+
+from gamecurveprobe.api.server import create_app
+from gamecurveprobe.backends.capture.dxcam_backend import DxcamCaptureBackend
+from gamecurveprobe.backends.capture.wgc_backend import WgcCaptureBackend
+from gamecurveprobe.backends.controller.vgamepad_backend import VgamepadControllerBackend
+from gamecurveprobe.context import AppContext
+from gamecurveprobe.events import EventHub
+from gamecurveprobe.services.capture_service import CaptureService
+from gamecurveprobe.services.controller_service import ControllerService
+from gamecurveprobe.services.deadzone_probe_service import DeadzoneProbeService
+from gamecurveprobe.services.export_service import ExportService
+from gamecurveprobe.services.idle_noise_runner import IdleNoiseRunner
+from gamecurveprobe.services.job_manager import JobManager
+from gamecurveprobe.services.measurement_runner import MeasurementRunner
 from gamecurveprobe.services.session_service import SessionService
-from gamecurveprobe.services.steady_probe_runner import SteadyProbeRunner
 from gamecurveprobe.services.window_service import WindowService
-from gamecurveprobe.services.yaw360_calibration_runner import Yaw360CalibrationRunner
-from gamecurveprobe.vision.motion_estimator import MotionEstimator
-
-
-def _enable_windows_dpi_awareness(user32=None, shcore=None) -> None:
-    if sys.platform != "win32":
-        return
-
-    user32 = user32 or ctypes.windll.user32
-    shcore = shcore or getattr(ctypes.windll, "shcore", None)
-
-    if shcore is not None:
-        per_monitor_v2 = 2
-        result = shcore.SetProcessDpiAwareness(per_monitor_v2)
-        if result == 0:
-            return
-
-    user32.SetProcessDPIAware()
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="GameCurveProbe desktop application")
-    parser.add_argument("--ipc-only", action="store_true", help="Run only the local HTTP IPC server")
-    parser.add_argument("--port", type=int, default=48231, help="Local IPC port")
+    parser = argparse.ArgumentParser(description="GameCurveProbe 2.0 Web Application Server")
+    parser.add_argument("--host", default="127.0.0.1", help="Host address to bind to (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8765, help="Port to listen on (default: 8765)")
+    parser.add_argument("--token", default=None, help="Authentication token (generated automatically if omitted)")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open the browser automatically on startup")
     return parser
 
 
-def _build_preview_capture_backend_factory(window_service: WindowService):
-    def create_capture_backend():
-        from gamecurveprobe.backends.capture.dxcam_backend import DxcamCaptureBackend
-
-        return DxcamCaptureBackend(window_service=window_service)
-
-    return create_capture_backend
-
-
-def _build_steady_capture_backend_factory(window_service: WindowService):
-    def create_capture_backend():
-        from gamecurveprobe.backends.capture.dxcam_monitor_backend import DxcamMonitorCaptureBackend
-
-        return DxcamMonitorCaptureBackend(window_service=window_service)
-
-    return create_capture_backend
-
-
-def _cleanup_persistent_controller(controller: VgamepadControllerBackend) -> None:
-    try:
-        controller.neutral()
-    except Exception:
-        pass
-    try:
-        controller.disconnect()
-    except Exception:
-        pass
-
-
-def main(argv: list[str] | None = None) -> int:
-    _enable_windows_dpi_awareness()
-    args = build_parser().parse_args(argv)
+def build_context(token: str, host: str, port: int) -> AppContext:
+    controller_backend = VgamepadControllerBackend()
+    controller = ControllerService(controller_backend)
 
     window_service = WindowService()
-    shared_controller = VgamepadControllerBackend()
-    if shared_controller.probe():
-        shared_controller.connect()
+    wgc_backend = WgcCaptureBackend()
+    dxcam_backend = DxcamCaptureBackend(window_service=window_service)
+    capture = CaptureService({"wgc": wgc_backend, "dxcam": dxcam_backend})
 
-    steady_probe_runner = SteadyProbeRunner(
-        controller_backend_factory=lambda: shared_controller,
-        capture_backend_factory=_build_steady_capture_backend_factory(window_service),
-        motion_sampler=MotionSampler(),
-        disconnect_controller_on_finish=False,
+    session = SessionService()
+    events = EventHub()
+    jobs = JobManager(
+        publish=lambda ev: events.publish("job_event", ev),
     )
-    calibration_runner = Yaw360CalibrationRunner(
-        controller_backend_factory=lambda: shared_controller,
-        capture_backend_factory=_build_preview_capture_backend_factory(window_service),
-        motion_estimator_factory=MotionEstimator,
-        disconnect_controller_on_finish=False,
-    )
-    idle_noise_calibration_runner = IdleNoiseCalibrationRunner(
-        capture_backend_factory=_build_preview_capture_backend_factory(window_service),
-        motion_sampler=MotionSampler(),
-        motion_estimator_factory=MotionEstimator,
-    )
-    session_service = SessionService(
-        window_service=window_service,
-        steady_probe_runner=steady_probe_runner,
-        calibration_runner=calibration_runner,
-        idle_noise_calibration_runner=idle_noise_calibration_runner,
-    )
-    http_server = LocalHttpServer(
-        host="127.0.0.1",
-        port=args.port,
-        session_service=session_service,
-        window_service=window_service,
-    )
-    http_server.start()
 
-    if args.ipc_only:
-        print(f"GameCurveProbe IPC listening on http://127.0.0.1:{args.port}")
-        try:
-            http_server.join()
-        except KeyboardInterrupt:
-            http_server.stop()
-        finally:
-            _cleanup_persistent_controller(shared_controller)
-        return 0
-
-    from PySide6.QtWidgets import QApplication
-
-    from gamecurveprobe.gui.main_window import MainWindow
-
-    app = QApplication(sys.argv)
-    app.setApplicationName("GameCurveProbe")
-    inner_deadzone_calibration_service = InnerDeadzoneCalibrationService(shared_controller)
-    window = MainWindow(
-        session_service=session_service,
-        window_service=window_service,
-        http_server=http_server,
-        inner_deadzone_calibration_service=inner_deadzone_calibration_service,
+    probe = DeadzoneProbeService(controller)
+    measurement = MeasurementRunner(
+        controller=controller,
+        capture_factory=lambda: capture,
+        motion_sampler=None,
     )
-    window.show()
-    try:
-        return app.exec()
-    finally:
-        http_server.stop()
-        _cleanup_persistent_controller(shared_controller)
+    idle_noise = IdleNoiseRunner(
+        capture_factory=lambda: capture,
+        motion_sampler=None,
+    )
+    export = ExportService()
+
+    allowed_origins = frozenset({
+        f"http://{host}:{port}",
+        f"http://localhost:{port}",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    })
+
+    return AppContext(
+        token=token,
+        windows=window_service,
+        session=session,
+        jobs=jobs,
+        capture=capture,
+        controller=controller,
+        probe=probe,
+        measurement=measurement,
+        idle_noise=idle_noise,
+        export=export,
+        events=events,
+        allowed_origins=allowed_origins,
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    token = args.token or secrets.token_urlsafe(16)
+    host = args.host
+    port = args.port
+
+    static_dir = Path(__file__).resolve().parent / "web_dist"
+    app = create_app(
+        context_factory=lambda: build_context(token, host, port),
+        static_dir=static_dir,
+    )
+
+    url = f"http://{host}:{port}/?token={token}"
+    print("\n" + "=" * 60)
+    print(" GameCurveProbe 2.0 WebUI Server")
+    print(f" Web Interface: {url}")
+    print(f" Token: {token}")
+    print("=" * 60 + "\n")
+
+    if not args.no_browser:
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+    uvicorn.run(app, host=host, port=port, log_level="info")
+    return 0
