@@ -24,7 +24,50 @@ import type { RangeMode } from '../types/api'
 const sessionStore = useSessionStore()
 
 const rangeMode = ref<RangeMode>(sessionStore.config?.range_mode || 'full')
-const pointCount = ref<number>(sessionStore.config?.point_count || 17)
+
+// Point Count Presets & Custom Input
+const initialPointCount = sessionStore.config?.point_count || 17
+const pointCountPreset = ref<string>(
+  [9, 17, 33].includes(initialPointCount) ? String(initialPointCount) : 'custom'
+)
+const customPointCount = ref<number>(initialPointCount)
+
+const pointCount = computed<number>(() => {
+  if (pointCountPreset.value === 'custom') {
+    return Math.max(3, Math.min(100, customPointCount.value || 17))
+  }
+  return parseInt(pointCountPreset.value, 10) || 17
+})
+
+// Duration Presets & Custom Input
+const initialSettleMs = sessionStore.config?.settle_ms || 300
+const initialSampleMs = sessionStore.config?.sample_ms || 700
+
+const getInitialDurationPreset = () => {
+  if (initialSettleMs === 300 && initialSampleMs === 700) return 'standard'
+  if (initialSettleMs === 200 && initialSampleMs === 500) return 'fast'
+  if (initialSettleMs === 400 && initialSampleMs === 1000) return 'precise'
+  return 'custom'
+}
+
+const durationPreset = ref<string>(getInitialDurationPreset())
+const customSettleMs = ref<number>(initialSettleMs)
+const customSampleMs = ref<number>(initialSampleMs)
+
+const settleMs = computed<number>(() => {
+  if (durationPreset.value === 'standard') return 300
+  if (durationPreset.value === 'fast') return 200
+  if (durationPreset.value === 'precise') return 400
+  return Math.max(50, Math.min(5000, customSettleMs.value || 300))
+})
+
+const sampleMs = computed<number>(() => {
+  if (durationPreset.value === 'standard') return 700
+  if (durationPreset.value === 'fast') return 500
+  if (durationPreset.value === 'precise') return 1000
+  return Math.max(100, Math.min(10000, customSampleMs.value || 700))
+})
+
 const errorMessage = ref<string | null>(null)
 
 const logContainerRef = ref<HTMLElement | null>(null)
@@ -121,7 +164,7 @@ async function copyLogs() {
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
   } catch (err) {
-    console.warn('Failed to copy logs:', err)
+    console.error('Failed to copy logs:', err)
   }
 }
 
@@ -141,6 +184,8 @@ async function applyConfig() {
   await sessionStore.updateConfig({
     range_mode: rangeMode.value,
     point_count: pointCount.value,
+    settle_ms: settleMs.value,
+    sample_ms: sampleMs.value,
   })
 }
 
@@ -197,24 +242,85 @@ function proceedToAnalysis() {
           </select>
         </div>
 
+        <!-- 采样点密度 -->
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-neutral-700">采样点密度</label>
-          <select
-            v-model.number="pointCount"
-            :disabled="isRunning"
-            class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
-          >
-            <option :value="9">9 点 (快速摸底, ~15秒)</option>
-            <option :value="17">17 点 (标准推荐, ~30秒)</option>
-            <option :value="33">33 点 (高精密度, ~60秒)</option>
-          </select>
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-neutral-700">采样点密度</label>
+            <span v-if="pointCountPreset === 'custom'" class="text-[10px] text-neutral-400 font-mono">自定义点数</span>
+          </div>
+          <div class="space-y-1.5">
+            <select
+              v-model="pointCountPreset"
+              :disabled="isRunning"
+              class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
+            >
+              <option value="9">9 点 (快速摸底, ~15秒)</option>
+              <option value="17">17 点 (标准推荐, ~30秒)</option>
+              <option value="33">33 点 (高精密度, ~60秒)</option>
+              <option value="custom">✏️ 自定义采样点数...</option>
+            </select>
+            <div v-if="pointCountPreset === 'custom'" class="flex items-center space-x-2 pt-0.5">
+              <input
+                type="number"
+                v-model.number="customPointCount"
+                :disabled="isRunning"
+                min="3"
+                max="100"
+                placeholder="例如 25"
+                class="w-full bg-white border border-neutral-300 rounded-lg px-2.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
+              />
+              <span class="text-xs font-mono text-neutral-500 shrink-0">点 (3-100)</span>
+            </div>
+          </div>
         </div>
 
+        <!-- 单点稳定/采样时长 -->
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-neutral-700">单点稳定/采样时长</label>
-          <div class="px-3 py-2 bg-neutral-50 border border-neutral-200/80 rounded-lg text-xs font-mono text-neutral-700 flex items-center justify-between">
-            <span>Settle: {{ sessionStore.config?.settle_ms }}ms</span>
-            <span>Sample: {{ sessionStore.config?.sample_ms }}ms</span>
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-neutral-700">单点稳定/采样时长</label>
+            <span v-if="durationPreset !== 'custom'" class="text-[10px] font-mono text-neutral-400">
+              {{ settleMs }}ms / {{ sampleMs }}ms
+            </span>
+          </div>
+          <div class="space-y-1.5">
+            <select
+              v-model="durationPreset"
+              :disabled="isRunning"
+              class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
+            >
+              <option value="standard">标准推荐 (Settle: 300ms / Sample: 700ms)</option>
+              <option value="fast">快速响应 (Settle: 200ms / Sample: 500ms)</option>
+              <option value="precise">高精平滑 (Settle: 400ms / Sample: 1000ms)</option>
+              <option value="custom">✏️ 自定义时长 (毫秒)...</option>
+            </select>
+            <div v-if="durationPreset === 'custom'" class="grid grid-cols-2 gap-2 pt-0.5">
+              <div class="flex items-center space-x-1">
+                <span class="text-[10px] text-neutral-500 shrink-0">Settle:</span>
+                <input
+                  type="number"
+                  v-model.number="customSettleMs"
+                  :disabled="isRunning"
+                  step="50"
+                  min="50"
+                  max="5000"
+                  class="w-full bg-white border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
+                />
+                <span class="text-[10px] text-neutral-400">ms</span>
+              </div>
+              <div class="flex items-center space-x-1">
+                <span class="text-[10px] text-neutral-500 shrink-0">Sample:</span>
+                <input
+                  type="number"
+                  v-model.number="customSampleMs"
+                  :disabled="isRunning"
+                  step="50"
+                  min="100"
+                  max="10000"
+                  class="w-full bg-white border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
+                />
+                <span class="text-[10px] text-neutral-400">ms</span>
+              </div>
+            </div>
           </div>
         </div>
 
