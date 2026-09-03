@@ -1,221 +1,444 @@
-# GameCurveProbe WebUI 全面重构设计规范 (Design Spec)
+# GameCurveProbe WebUI 全面重构设计规范
 
-- **创建日期**: 2026-09-03
-- **状态**: Approved by User
-- **目标**: 将原基于 PySide6 的桌面客户端彻底重构为现代化的 **FastAPI + WebSocket + Vue 3 (TailwindCSS v4 + ECharts)** WebUI 架构；解决抓屏黑屏痛点，精简废弃功能，强化参数指引，优化内外双死区调节与曲线导出体验。
+- **创建/修订日期**：2026-09-03
+- **状态**：Approved by User
+- **目标版本**：2.0
+- **适用平台**：Windows 10/11，本机单用户
 
----
+## 1. 目标与非目标
 
-## 1. 背景与重构动因
+### 1.1 目标
 
-1. **原 GUI 体验不佳且职责过度耦合**：
-   - 原界面基于 PySide6 构建，`main_window.py` 接近 900 行，将布局、双向数据绑定、Win32 消息循环、线程生命周期管理和绘图混合在一起；
-   - 界面缺乏现代设计感，参数密集且缺乏说明，新手难以理解各参数意义；
-   - 存在大量未启用的占位功能（如禁用的动态响应 Dynamic Response）。
-2. **抓屏黑屏与兼容性痛点**：
-   - 现有抓屏引擎仅依赖 `dxcam`（基于 DXGI 桌面复制）。在双显卡笔记本（Optimus）、跨多显示器、部分独占全屏或缩放场景下，极易发生抓取失败或返回纯黑画面的情况。
-3. **冗余功能需清理**：
-   - 原项目中为外部脚本预留的独立 IPC HTTP 服务（`http_server.py`）无实际使用场景；
-   - 原 360° 旋转比例标定耗时漫长且容易因旋转丢特征点，且核心需求仅为测量手柄推量与视角转速的相对响应趋势，确认彻底剔除。
-4. **功能需求增强**：
-   - 内死区（Inner Deadzone）与外死区（Outer Deadzone / 饱和阈值）需同时支持双向调节与交互式标定；
-   - 稳态测量需支持智能聚焦在 `[内死区, 外死区]` 有效响应区间，提供开箱即用的预设挡位（快速/标准/高精）；
-   - 提供更规范的 CSV、游戏预设 JSON 及一键复制表格。
+将现有 PySide6 客户端一次性重构为 FastAPI + WebSocket + Vue 3 WebUI。最终版本必须支持：
 
----
+1. 选择并捕获目标游戏窗口；
+2. 在实时预览上选择 ROI，获得纹理和跟踪质量诊断；
+3. 采集画面底噪，通过人工观察辅助标定内外死区；
+4. 在有效行程或全行程内执行可取消的稳态响应测量；
+5. 展示 `px/s` 与归一化响应曲线，给出有置信度约束的曲线分类；
+6. 下载版本化 JSON、CSV，复制 TSV；
+7. 导入本版本 JSON 进行离线查看和比较；
+8. 在正常结束、取消、异常和进程退出时保证虚拟手柄回中。
 
-## 2. 总体技术架构与技术栈
+### 1.2 非目标
 
-### 2.1 技术栈选型
-- **后端架构**：
-  - **语言与运行时**：Python >= 3.13
-  - **Web 与通信框架**：`FastAPI` + `uvicorn` + `websockets`
-  - **视觉与光流计算**：`OpenCV` (cv2.calcOpticalFlowPyrLK) + `numpy`
-  - **抓屏双引擎**：
-    - **主引擎**：`windows-capture`（基于微软官方 Windows Graphics Capture / WGC，原生窗口捕获，无黑屏，支持 120+ FPS，Direct3D 11 硬件加速）；
-    - **备用引擎**：`dxcam`（DXGI 桌面复制，保留用于特殊环境备选）。
-  - **手柄模拟**：`vgamepad` (基于 Windows ViGEmBus 驱动)
-- **前端架构**：
-  - **框架**：Vue 3 + TypeScript
-  - **构建工具**：Vite
-  - **样式**：TailwindCSS v4（`@tailwindcss/vite` 原生驱动，深色工业风玻璃态设计）
-  - **状态管理**：Pinia
-  - **图表**：ECharts
-  - **图标**：Lucide-Vue-Next
-- **打包分发**：
-  - 前端执行 `npm run build` 生成静态资源至 `src/gamecurveprobe/web/`；
-  - Python 后端通过 FastAPI 的 `StaticFiles` 挂载；
-  - 启动应用时通过 Python `webbrowser.open()` 自动调起系统默认浏览器；
-  - PyInstaller 仅打包 Python 运行时、依赖与前端静态产物，彻底剔除 PySide6 150MB+ 体积包袱。
+- 局域网或公网访问、多用户、多会话并发；
+- 任务历史数据库、云同步、账号或遥测；
+- Y 轴及负方向的正式测量；
+- 自动识别游戏内外死区或自动修改游戏设置；
+- 360° 标定、`deg/s` 和角速度换算；
+- 动态响应测量；
+- 系统托盘、浏览器关闭即退出；
+- 旧会话 JSON 的自动迁移。
 
----
+## 2. 现状与迁移决策
 
-## 3. 系统目录与模块划分
+当前 `main_window.py` 混合界面、数据绑定、线程、Win32 生命周期与绘图；旧 IPC HTTP 接口并非面向 WebUI 设计；现有稳态 runner 同步阻塞，取消只改变会话状态，不能可靠中断硬件循环；数据模型仍包含 yaw360、动态响应和角速度字段。
+
+本次采用**一次性全面切换**，最终产物不提供双架构或兼容模式。实施时遵循“先建新链路并验证，再删除旧链路”，但所有工作在同一重构版本完成，不发布中间兼容版本。
+
+最终删除：
+
+- `src/gamecurveprobe/gui/`；
+- `src/gamecurveprobe/services/http_server.py`；
+- `src/gamecurveprobe/services/yaw360_calibration_runner.py`；
+- 动态响应占位代码；
+- PySide6 依赖、旧 GUI/IPC/yaw360 测试；
+- `yaw360_timeout_ms`、`yaw_deg_per_px`、`deg_per_sec` 等字段；
+- `--ipc-only` 及相关文档入口。
+
+窗口枚举、底噪、稳态采样、回中和打包等仍有价值的旧行为，必须先由新测试覆盖。
+
+## 3. 技术栈与总体架构
+
+### 3.1 技术栈
+
+- Python >= 3.13；
+- FastAPI、Uvicorn、Pydantic；
+- OpenCV、NumPy；
+- WGC 主捕获后端和 DXGI 备用后端；
+- vgamepad 与 ViGEmBus；
+- Vue 3、TypeScript、Vite、Pinia；
+- TailwindCSS v4、ECharts、Lucide-Vue-Next；
+- PyInstaller。
+
+WGC 的目标是降低黑屏概率，不承诺“绝不黑屏”或固定达到 120 FPS。具体 Python 库必须在开发初期验证 Python 3.13、目标 Windows 版本和 PyInstaller 支持；允许在不改变 `CaptureBackend` 契约的前提下替换实现库。
+
+### 3.2 运行架构
 
 ```text
-GameCurveProbe/
-├── pyproject.toml                     # 移除 PySide6，加入 fastapi, uvicorn, websockets, windows-capture
-├── src/
-│   └── gamecurveprobe/
-│       ├── __init__.py
-│       ├── __main__.py                # CLI 入口
-│       ├── app.py                     # 初始化服务、组装依赖、启动 Uvicorn、打开浏览器
-│       ├── models.py                  # 精简后的核心数据结构（配置、测点、结果模型）
-│       │
-│       ├── api/                       # [新增] Web 服务与 API 通道
-│       │   ├── __init__.py
-│       │   ├── server.py              # FastAPI 应用构建、静态托管挂载、生命周期管理
-│       │   ├── routes.py              # 窗口列表、配置、标定、测量、导出等 REST 接口
-│       │   └── websocket.py           # /ws/live 实时抓屏帧流、光流速度、测量进度广播
-│       │
-│       ├── backends/                  # 底层硬件与系统接口抽象
-│       │   ├── capture/
-│       │   │   ├── base.py            # BaseCaptureBackend 抽象基类
-│       │   │   ├── wgc_backend.py     # [新增] 基于 windows-capture (WGC) 的窗口捕获引擎
-│       │   │   ├── dxcam_backend.py   # 原 DXGI 引擎（备用）
-│       │   │   └── stub.py            # 测试用模拟捕获桩
-│       │   └── controller/
-│       │       ├── base.py
-│       │       ├── vgamepad_backend.py
-│       │       └── stub.py
-│       │
-│       ├── services/                  # 核心测量与业务编排
-│       │   ├── window_service.py      # Win32 窗口枚举与信息获取
-│       │   ├── session_service.py     # 会话管理、状态转换与生命周期
-│       │   ├── measurement_runner.py  # [重构] 统一稳态测量调度器（支持中断与进度回调）
-│       │   ├── deadzone_service.py    # [重构] 内外双死区交互式调节与标定
-│       │   └── idle_noise_runner.py   # 静态底噪采样服务
-│       │
-│       └── vision/
-│           ├── motion_estimator.py    # 光流测速与 Sobel 纹理加权
-│           └── roi_analyzer.py        # [新增] ROI 区域纹理丰富度与跟踪质量评估
-│
-├── frontend/                          # [新增] Vue 3 SPA 前端项目
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── src/
-│   │   ├── main.ts
-│   │   ├── App.vue
-│   │   ├── assets/                    # 全局 TailwindCSS v4 样式
-│   │   ├── stores/                    # Pinia 状态中心（sessionStore, previewStore）
-│   │   ├── api/                       # Axios / Fetch 封装与 WebSocket 连接
-│   │   └── components/
-│   │       ├── layout/                # 顶部导航、步骤向导栏、系统连接状态
-│   │       ├── step1-capture/         # 窗口选择、引擎切换、Canvas 抓屏与 ROI 拖拽诊断
-│   │       ├── step2-calibrate/       # 内外死区双滑块微调、摇杆交互、底噪一键标定
-│   │       ├── step3-measure/         # 预设挡位(快速/标准/高精)、高级折叠参数、动态进度大屏
-│   │       └── step4-dashboard/       # ECharts 交互曲线、特征标记、分析总结与导出面板
-│
-└── tests/                             # 自动化测试用例
-    ├── api/                           # FastAPI 接口自动化测试
-    ├── backends/                      # 抓屏与手柄测试
-    ├── services/                      # 核心服务逻辑与测试状态机测试
-    └── vision/                        # 光流与 ROI 评估测试
+Vue SPA
+  │ REST：配置、命令、查询、导入导出
+  │ WebSocket：预览、运动、进度、状态
+  ▼
+FastAPI
+  ├─ AppContext              应用资源所有权与生命周期
+  ├─ SessionService          唯一活动会话、配置与结果
+  ├─ JobManager              唯一活动任务、取消与进度
+  ├─ CaptureService          捕获选择、帧分发与健康监测
+  ├─ ControllerService       vgamepad 独占访问与强制回中
+  ├─ DeadzoneProbeService    人工试推及租约
+  ├─ MeasurementRunner       与 Web 框架无关的测量流程
+  ├─ RoiAnalyzer             ROI 质量分析
+  └─ ExportService           JSON、CSV 与导入验证
 ```
 
----
+核心约束：
 
-## 4. 详细接口设计 (API & WebSocket)
+- Uvicorn 仅绑定 loopback；产品 UI 不提供绑定 `0.0.0.0` 的选项；
+- 单进程、单活动会话、同一时间最多一个硬件任务；
+- REST 是所有硬件写操作的唯一入口，WebSocket 只推送事件；
+- OpenCV、抓屏和手柄等阻塞工作在后台线程运行，不阻塞事件循环；
+- 后端服务不依赖 FastAPI 或 Vue；API 使用 Pydantic DTO，不暴露内部 dataclass；
+- FastAPI lifespan 创建和销毁 `AppContext`；所有退出路径执行取消、回中和捕获释放。
 
-### 4.1 REST API 规范
+### 3.3 建议目录
 
-所有请求响应采用标准 JSON 格式：
+```text
+src/gamecurveprobe/
+├── app.py
+├── models.py
+├── events.py
+├── errors.py
+├── api/{server,routes,websocket,schemas}.py
+├── backends/
+│   ├── capture/{base,wgc_backend,dxcam_backend,stub}.py
+│   └── controller/{base,vgamepad_backend,stub}.py
+├── services/
+│   ├── session_service.py
+│   ├── job_manager.py
+│   ├── capture_service.py
+│   ├── controller_service.py
+│   ├── deadzone_probe_service.py
+│   ├── measurement_runner.py
+│   ├── idle_noise_runner.py
+│   └── export_service.py
+├── vision/{motion_estimator,roi_analyzer}.py
+└── web/                    Vite 生产构建产物
 
-| 端点 | 方法 | 说明 | 请求体 / 参数 | 响应 |
-| :--- | :--- | :--- | :--- | :--- |
-| `/api/system/health` | GET | 服务健康检查与依赖就绪状态 (ViGEm/WGC) | 无 | `{status: "ok", controller_ready: bool}` |
-| `/api/windows` | GET | 列出当前所有可见游戏窗口 | 无 | `{windows: [{id, title, pid, width, height}]}` |
-| `/api/capture/attach` | POST | 绑定目标窗口并指定抓屏引擎 | `{window_id: int, backend: "wgc" \| "dxcam"}` | `{attached: bool, engine: str}` |
-| `/api/session/roi` | POST | 设置当前跟踪的 ROI 区域 | `{x: int, y: int, width: int, height: int}` | `{roi: {...}, quality_score: float, tip: str}` |
-| `/api/session/config` | GET | 获取当前会话配置及默认挡位预设 | 无 | `{config: {...}, presets: {...}}` |
-| `/api/session/config` | PUT | 更新当前会话配置 | `{capture_fps, point_count, settle_ms, ...}` | `{config: {...}}` |
-| `/api/deadzone/set` | POST | 直接更新内外死区数值 | `{inner_deadzone: float, outer_deadzone: float}` | `{inner_deadzone, outer_deadzone}` |
-| `/api/deadzone/probe-start` | POST | 启动死区交互式试推模式 | `{initial_value: float, direction: "inner" \| "outer"}` | `{active: bool, current_output: float}` |
-| `/api/deadzone/probe-step` | POST | 试推模式下单步增减摇杆推量 | `{delta: float}` | `{current_output: float}` |
-| `/api/deadzone/probe-stop` | POST | 退出死区试推模式并回中 | 无 | `{active: false}` |
-| `/api/calibrate/idle-noise` | POST | 执行画面底噪采样（静止 1.2s） | 无 | `{noise_floor_x: float, noise_floor_y: float}` |
-| `/api/measurement/start` | POST | 启动稳态测定任务 | `{range_mode: "active_range" \| "full"}` | `{job_id: str, state: "running"}` |
-| `/api/measurement/cancel` | POST | 中断当前测量任务（立即手柄回中） | 无 | `{state: "canceled"}` |
-| `/api/session/result` | GET | 获取最新测量曲线数据与拟合特征 | 无 | `{points: [...], metrics: {...}}` |
-| `/api/session/export` | POST | 导出文件并保存到指定路径或返回下载 | `{format: "csv" \| "json", output_dir?: str}` | `{file_path?: str, content?: str}` |
+frontend/
+├── src/{api,assets,components,stores,types}/
+├── package.json
+└── vite.config.ts
+```
 
-### 4.2 WebSocket 规范 (`/ws/live`)
+## 4. 领域模型、资源所有权与状态机
 
-客户端连接后，服务端以紧凑 JSON 或混合二进制流推送：
-- **画面流 (Frame Event)**：
-  - 抓屏画面经过 JPEG 压缩后传输（默认 30~60 FPS，体积极低），前端通过 Canvas 或 `Blob` 渲染；
-- **运动向量 (Motion Event)**：
-  - 格式：`{type: "motion", vx: float, vy: float, tracked_points: int, confidence: float}`；
-- **测量进度 (Progress Event)**：
-  - 格式：`{type: "progress", current_point: int, total_points: int, input_value: float, current_speed: float, stability: float, percent: int}`；
-- **任务完成/失败 (Status Event)**：
-  - 格式：`{type: "status", state: "idle" | "running" | "completed" | "failed", message: str}`。
+应用启动时创建唯一 `session_id`。底噪标定和稳态测量每次创建新的 `job_id`；本版本只保留当前任务和最近一次完整结果，不持久化历史任务。
 
----
+```text
+会话：unconfigured → ready → measuring → completed
+          │           │         │           │
+          └───────────┴─────────┴──────────→ error
 
-## 5. 前端向导交互流程与各环节设计
+任务：queued → running → completed
+                 ├→ canceling → canceled
+                 └→ failed
 
-### 阶段 1：画面捕获与 ROI 诊断 (Capture & ROI)
-- **目标窗口下拉**：自动列出所有桌面应用（可一键刷新）；
-- **抓取引擎选择**：默认为 **现代窗口捕获 (WGC - 推荐)**，备选 **桌面复制 (DXGI)**；
-- **实时画板与 ROI 交互**：
-  - 用户在 Canvas 画面上直接用鼠标拖出跟踪方框；
-  - **ROI 质量智能评价**：
-    - 后端计算 ROI 内部梯度丰富度与边缘方向比率；
-    - 前端显示评级徽章：⭐⭐⭐⭐⭐“极佳纹理”，并在选区较平滑时给出具体建议（例如：“避免天空与纯色墙壁，请选取窗框、地面或明显砖石边缘”）。
+捕获：detached → attaching → attached → degraded
+```
 
-### 阶段 2：环境标定与死区调节 (Calibrations & Dual Deadzone)
-- **内外死区双向控制卡片**：
-  - **联动双滑块**：清晰标明 `0.00 ~ 内死区 (静止)` $\to$ `内死区 ~ 外死区 (有效反应)` $\to$ `外死区 ~ 1.00 (满速饱和)`；
-  - **精确数值输入**：支持手动填入数值（如 `0.045`）；
-  - **交互式试推测试**：点击“试推摇杆”，可在网页上微调数值并同时观察游戏画面是否刚好开始转动，一键锁定临界值。
-- **底噪快速采样卡片**：
-  - 一键保持静止 1.2 秒，自动剔除视角轻微晃动底噪。
+状态转换由领域服务执行，API handler 不直接修改状态。任务进入终态后不可复用。
 
-### 阶段 3：稳态响应测定与大屏 (Steady Measurement)
-- **挡位选择器**：
-  - ⚡ **快速摸底（9点）**：约 15 秒出大致曲线；
-  - 🎯 **标准测定（17点，推荐）**：约 35 秒，精细度最佳；
-  - 🔬 **科研级高精（33点）**：约 70 秒，全采样；
-- **采样区间策略**：
-  - 提供开关：“**聚焦有效行程**（仅在内死区至外死区之间排布测点，省时高效）”或“**全行程采样**”。
-- **高级参数（折叠面板 + 问号 Tooltip 说明）**：
-  - Settle 稳定时间（等待相机转速加速平稳的时间，默认 300ms）；
-  - Sample 采样时间（计算平均速度的时长，默认 700ms）；
-  - 重复测试次数（默认 2 次取中位数）。
-- **测量进行时全景大屏**：
-  - 实时显示当前推力仪表面板、动态波形曲线、进度条、测点稳定性评分及剩余时间。
+会话的 `error` 表示当前配置或资源需要用户干预，不代表进程不可恢复；重新绑定捕获、修正配置或完成一次新任务后可回到 `ready`。同一时间只保留一个 `active_job`，终态任务作为 `last_job` 快照保留到下一任务创建。
 
-### 阶段 4：ECharts 曲线大屏与导出 (Analysis & Export)
-- **ECharts 交互图表**：
-  - X 轴：摇杆推量（0.0 ~ 1.0）；Y 轴：转速（px/s）；
-  - 自动标注高亮线：内死区界限、外死区界限、过渡段斜率；
-  - 曲线形态自动判定：显示判定结果（如：标准线性 Linear、渐进加速 Exponential、S型曲线 S-Curve）。
-- **导出套件**：
-  - 📊 **标准 CSV**：包含列头 `Input, Velocity_px_s, Normalized_Ratio, Stability`；
-  - 💾 **游戏预设 JSON**：保存完整测试工况与测试点，随时支持导入重现；
-  - 📋 **一键复制为 Excel 表格**：直接复制 TSV 格式数据到剪贴板，方便粘贴至 Excel 绘制对比图。
+资源互斥规则：
 
----
+- 预览可以持续使用捕获设备；
+- 测量时 `CaptureService` 将帧供给测量器，并向预览发送限速副本；
+- 死区试推与稳态测量互斥；
+- 底噪只占用捕获资源，但不得与稳态测量并行；
+- 冲突请求返回 `409 RESOURCE_BUSY`，不得覆盖正在运行的任务；
+- 取消先进入 `canceling`。只有 runner 退出且完成 `neutral()` 后才能进入 `canceled`。
 
-## 6. 清理与剔除清单
+`ControllerService` 串行化所有手柄写入。取消时先设置取消令牌，再通过同一串行通道提交高优先级 `neutral()`；runner 在任何后续写入前检查令牌，因此 API 线程不会与测量线程并发写手柄。
 
-在本次重构中，彻底删除以下历史遗留代码与依赖：
-1. **彻底移除 PySide6**：从 `pyproject.toml` 移除，删除整个 `src/gamecurveprobe/gui/` 目录；
-2. **彻底移除旧版 IPC HTTP 服务**：删除 `src/gamecurveprobe/services/http_server.py`；
-3. **彻底移除 360° 旋转标定**：删除 `src/gamecurveprobe/services/yaw360_calibration_runner.py`；
-4. **清理动态响应 (Dynamic Run) 占位代码**：清理 `models.py` 与业务层中所有未使用的动态占位字段与未实现逻辑。
+## 5. REST API
 
----
+所有 API 均位于 `/api`。除健康检查和 SPA 静态资源外，REST 与 WebSocket 都要求启动时生成的随机令牌。
 
-## 7. 验证与测试计划
+| 方法与路径 | 说明 | 主要响应 |
+|---|---|---|
+| `GET /api/health` | 服务和依赖状态 | 服务、控制器、WGC、DXGI、前端资源状态 |
+| `GET /api/session` | 当前会话快照 | 会话、资源状态、最近任务摘要 |
+| `GET /api/windows` | 可捕获窗口 | 稳定的窗口 DTO 列表 |
+| `POST /api/capture/attach` | 绑定窗口 | 实际后端、帧尺寸、诊断信息 |
+| `POST /api/capture/detach` | 释放捕获 | 捕获状态 |
+| `PUT /api/session/roi` | 设置并评价 ROI | ROI、分数、指标与建议代码 |
+| `GET /api/session/config` | 读取配置 | 配置、约束和预设 |
+| `PUT /api/session/config` | 原子更新配置 | 校验后的完整配置 |
+| `PUT /api/session/deadzones` | 更新双死区 | 双死区和约束 |
+| `POST /api/deadzone/probe` | 启动试推 | 租约和当前输出 |
+| `PUT /api/deadzone/probe` | 设置绝对输出 | 当前输出和租约截止时间 |
+| `DELETE /api/deadzone/probe` | 结束试推并回中 | 非活动状态 |
+| `POST /api/jobs/idle-noise` | 创建底噪任务 | `202`、job 快照 |
+| `POST /api/jobs/measurement` | 创建测量任务 | `202`、job 快照 |
+| `GET /api/jobs/{job_id}` | 查询任务 | job 快照 |
+| `DELETE /api/jobs/{job_id}` | 请求取消 | `202`、`canceling` |
+| `GET /api/result` | 最近完整结果 | 版本化结果 DTO |
+| `GET /api/result/export?format=csv` | 下载 CSV | 附件响应 |
+| `GET /api/result/export?format=json` | 下载 JSON | 附件响应 |
+| `POST /api/result/import` | 导入结果供离线分析 | 经校验的结果 DTO |
 
-1. **后端 API 单元测试**：
-   - 使用 `fastapi.testclient.TestClient` 测试 `/api/windows`、`/api/session/config`、`/api/deadzone/*` 等接口的正确性与异常处理；
-2. **抓屏与视觉模块测试**：
-   - 测试 `wgc_backend.py` 与 `dxcam_backend.py` 的接口一致性与异常回退；
-   - 测试 `roi_analyzer.py` 的质量评分算法；
-3. **测量调度与取消安全测试**：
-   - 验证在稳态测量中途发送 `cancel` 时，手柄是否保证立即调用 `neutral()`，避免摇杆卡死；
-4. **前端构建验证**：
-   - 执行 `npm run build`，确保 TypeScript 类型无报错、Tailwind v4 样式打包正常，产物成功供 FastAPI 托管。
+`POST /api/capture/attach` 支持 `backend: auto | wgc | dxcam`。`auto` 允许健康检查失败后回退；用户强制指定后端时不自动替换，以保留可诊断性。
+
+关键请求 DTO 固定如下：
+
+- 捕获绑定：`{window_id: int, backend: "auto" | "wgc" | "dxcam", target_fps: 30..240}`；
+- ROI：`{x: int, y: int, width: int, height: int}`，均以原始帧像素表示；
+- 会话配置：`{preset, point_count, repeats, settle_ms, sample_ms, range_mode}`；
+- 双死区：`{inner_deadzone: float, outer_deadzone: float}`；
+- 启动试推：`{direction: "x_positive", initial_output: float, step: float}`；
+- 更新试推：`{output: float}`，每次成功更新同时续租；即使输出值未变化也可用于续租；
+- 创建测量任务不复制配置，请求体只含 `{}`；JobManager 在接收请求时原子快照当前配置；
+- 导入结果使用 `multipart/form-data` 单文件字段 `file`，最大 5 MiB。
+
+统一错误格式：
+
+```json
+{"error":{"code":"RESOURCE_BUSY","message":"A measurement is already running.","details":{}}}
+```
+
+状态码约定：参数语义错误为 `400`，不存在为 `404`，状态冲突为 `409`，DTO 校验为 `422`，未知故障为 `500`，硬件不可用为 `503`。
+
+客户端不能提交导出目录。导出使用下载响应，避免任意文件写入。TSV 由前端从结果 DTO 生成。窗口 API 使用独立 DTO：`{id, title, pid, process_name, width, height}`。
+
+## 6. WebSocket 协议
+
+连接地址为 `/ws/events?session_id=...&token=...`。它只推送事件，不接收改变硬件状态的命令。
+
+```json
+{"seq":42,"type":"job.progress","job_id":"job-id","timestamp":"2026-09-03T12:00:00Z","payload":{}}
+```
+
+事件类型：`capture.status`、`motion.sample`、`roi.quality`、`job.state`、`job.progress`、`session.result`、`system.warning`，以及二进制 JPEG `preview.frame`。
+
+二进制帧采用固定信封：4 字节 ASCII magic `GCPF`、1 字节协议版本、2 字节大端 JSON 头长度、UTF-8 JSON 头、剩余全部为 JPEG。JSON 头包含 `seq`、`frame_id`、`monotonic_ns`、`width`、`height` 和 `jpeg_length`；长度不一致时客户端丢弃该帧。
+
+可靠性规则：
+
+- 状态和进度事件使用有界队列；
+- 每个连接的预览队列容量为 1，新帧覆盖旧帧，慢客户端不能阻塞捕获；
+- 预览默认上限 30 FPS、JPEG quality 75，测量时可降至 15 FPS；
+- WebSocket 断开不取消后台任务；
+- 重连后先通过 REST 恢复快照，再接收新事件；
+- `seq` 用于检测漏事件，不提供历史重放；
+- 页面断开后，活动试推由租约看门狗回中。
+
+## 7. 捕获、帧与 ROI
+
+### 7.1 捕获契约
+
+```python
+attach(window_id, target_fps) -> CaptureInfo
+read(timeout_ms) -> Frame | None
+health() -> CaptureHealth
+close() -> None
+```
+
+`Frame` 统一为 BGR `uint8`、窗口客户区坐标、单调时钟时间戳和递增帧号。ROI 始终使用捕获帧坐标，不使用屏幕绝对坐标。
+
+`auto` 先尝试 WGC，在 2 秒观察窗内获得至少 10 个尺寸一致的连续帧且重复率低于 80% 后认定可工作，否则尝试 DXGI。全黑诊断使用连续 10 帧亮度均值和标准差均不高于 1 的保守规则；该规则触发警告和自动回退，但用户仍可强制选择后端以处理本身就是黑暗场景的游戏。诊断报告请求 FPS、实际 FPS、丢帧、重复帧、亮度异常和最终后端。
+
+窗口最小化、关闭、尺寸变化和设备丢失产生 `capture.status`。尺寸变化时旧 ROI 失效；若正在测量，任务失败并安全回中，不静默缩放 ROI。
+
+### 7.2 ROI 质量
+
+ROI 评分使用灰度梯度、角点数、边缘方向分布和短时跟踪成功率，返回：
+
+- `score`：0 到 100；
+- `level`：`poor | fair | good | excellent`；
+- 指标明细；
+- 稳定的建议代码及本地化文案键。
+
+越界或宽、高任一小于 32 像素的 ROI 拒绝保存。`poor` 只警告；开始测量时重新检查，连续 10 帧中位跟踪点少于 8 或中位置信度低于 0.35 时拒绝任务。这些阈值作为后端常量集中管理，前端从配置约束 DTO 读取，不得重复硬编码。Canvas 必须保留显示坐标到原始帧坐标的确定性映射，并为该转换编写单元测试。
+
+## 8. 双死区人工试推
+
+`inner_deadzone` 和 `outer_deadzone` 是测量区间标记，不会修改游戏设置。本版本使用人工观察、工具辅助，不宣称自动识别死区。
+
+- 内死区：从低值增加，用户观察到游戏开始稳定转动后确认；
+- 外死区：从高值降低，用户观察到转速开始下降后，将此前仍保持满速的点确认为外死区；
+- 首版只支持右摇杆 X 正方向；
+- 前端通过绝对输出值更新，避免重试请求导致 `delta` 累积；
+- 默认步长 `0.005`，另提供 `0.001` 和 `0.01`；
+- 始终校验 `0 ≤ inner < outer ≤ 1`；
+- 进入下一阶段前必须退出试推并确认回中。
+
+试推租约默认 2 秒，前端每 500ms 续租。续租中断、页面断开、服务退出或异常都会使租约失效并触发回中。服务端不能依赖浏览器发送清理命令。
+
+## 9. 底噪与稳态测量
+
+底噪默认采样 1.2 秒，使用稳健分位数计算 X/Y 噪声阈值，同时保存有效帧、置信度和分布统计。测量值扣除对应阈值，结果不得小于零。
+
+稳态流程：
+
+```text
+校验配置与资源
+→ 获取控制器独占权
+→ 每点：回中 → 等待 → 施加输入 → settle → sample
+→ 质量不足最多重试一次
+→ 多次结果取中位数
+→ 最终回中并释放资源
+→ 生成结果与分析
+```
+
+runner 接收 `threading.Event` 取消令牌。所有等待拆成可中断短等待，采样循环也检查取消令牌，不允许用一次长 `sleep()` 阻止取消。
+
+- `active_range`：在 `[inner_deadzone, outer_deadzone]` 等距排点；
+- `full`：在 `[0, 1]` 排点并强制包含 inner/outer，去重后实际点数可能略高于预设。
+
+| 预设 | 点数 | 重复 | Settle | Sample |
+|---|---:|---:|---:|---:|
+| 快速 | 9 | 1 | 250ms | 500ms |
+| 标准 | 17 | 2 | 300ms | 700ms |
+| 高精 | 33 | 2 | 500ms | 1000ms |
+
+预计时长根据真实配置、回中等待和重试预算动态计算。单点失败仍保留该点，但标记 `valid=false`，不得用 `0 px/s` 冒充有效测量。当有效点少于 5 个或少于计划点数的 60% 时，任务以 `MEASUREMENT_QUALITY_LOW` 失败并保留诊断结果。
+
+## 10. 结果、分析与导入导出
+
+正式结果只使用 `px/s` 和归一化速度：
+
+```json
+{
+  "schema_version": 1,
+  "session_id": "session-id",
+  "captured_at": "2026-09-03T12:00:00Z",
+  "environment": {
+    "window_title": "Game",
+    "capture_backend": "wgc",
+    "requested_fps": 120,
+    "actual_fps": 87.4,
+    "frame_size": [1920, 1080],
+    "roi": {"x": 0, "y": 0, "width": 300, "height": 200}
+  },
+  "config": {"inner_deadzone": 0.05,"outer_deadzone": 0.92,"range_mode": "active_range"},
+  "points": [{
+    "input": 0.05,
+    "velocity_px_s": 0.0,
+    "normalized_speed": 0.0,
+    "stability": 0.91,
+    "valid": true,
+    "attempts": 2
+  }],
+  "analysis": {"curve_type": "linear","confidence": 0.82,"metrics": {}},
+  "warnings": []
+}
+```
+
+曲线类型为 `linear | exponential | s_curve | undetermined`。分类对归一化有效点分别拟合线性、幂函数和单调 logistic 候选，使用归一化 RMSE 评分。最佳模型必须满足 NRMSE ≤ 0.12，且比第二名至少低 0.02；否则返回 `undetermined`。`confidence` 定义为截断至 `[0,1]` 的 `1 - NRMSE`。拟合失败或有效点少于 5 个也返回 `undetermined`。算法和阈值作为独立纯函数与集中常量实现并测试。
+
+CSV 固定列：
+
+```text
+Input,Velocity_px_s,Normalized_Ratio,Stability,Valid,Attempts
+```
+
+JSON 是版本化结果包。导入只进入离线分析模式，不能恢复硬件状态或直接启动测量。只接受 `schema_version=1`；其他版本返回 `UNSUPPORTED_SCHEMA_VERSION`。
+
+## 11. 前端四阶段向导
+
+Pinia 只保存界面快照与连接状态，后端是会话、任务和结果的唯一事实来源。刷新后先读取 REST 快照，再连接 WebSocket。
+
+1. **捕获与 ROI**：选择窗口和 `auto/WGC/DXGI`；展示实际后端、FPS、尺寸、丢帧和健康状态；Canvas 拖选 ROI；使用 `ResizeObserver` 维护坐标映射。
+2. **环境与死区**：双死区滑块、精确输入、人工试推、步长和租约状态；展示底噪任务进度、有效帧和阈值。
+3. **稳态测量**：预设、范围、动态预计时间；修改高级参数后显示“自定义”；运行中锁定配置和窗口，只开放取消；展示进度、稳定性、波形和限速预览。
+4. **分析与导出**：ECharts 显示有效/无效点、死区线和拟合结果；下载 CSV/JSON、复制 TSV。导入后进入明确标识的离线分析模式；前端内存中最多保留一个导入结果，可将它与最近一次实测结果叠加比较。导入不会覆盖后端最近实测结果，刷新页面后导入结果消失。
+
+## 12. 错误处理与安全不变量
+
+领域错误代码：
+
+- `WINDOW_GONE`：刷新窗口并返回第一阶段；
+- `CAPTURE_BLACK_FRAME` / `CAPTURE_STALLED`：提示切换后端，`auto` 可回退一次；
+- `ROI_INVALIDATED`：要求重新选择 ROI；
+- `CONTROLLER_UNAVAILABLE`：提供 ViGEmBus/vgamepad 指引；
+- `RESOURCE_BUSY`：展示占用任务；
+- `MEASUREMENT_QUALITY_LOW`：保留诊断并允许重测；
+- `UNSUPPORTED_SCHEMA_VERSION`：拒绝导入并说明版本；
+- `INTERNAL_ERROR`：向用户显示短错误码，堆栈只写本地日志。
+
+发生任何错误后必须满足：手柄已回中或服务持续重试并报告致命状态；试推租约失效；任务终态可查询；捕获可重连或明确 `detached`；API 不泄漏堆栈。
+
+安全要求：
+
+- 仅监听 loopback；
+- 启动时生成至少 128 bit 随机令牌。自动打开 URL 将令牌放在 fragment 中，SPA 读取后从地址栏移除并仅保存在内存；REST 使用 `Authorization: Bearer`，WebSocket 因浏览器 API 限制使用查询参数；
+- REST 与 WebSocket 验证令牌和 Origin，不启用宽泛 CORS；
+- 限制请求体、JSON 导入、ROI、帧尺寸、JPEG 和事件队列大小；
+- 不接受客户端文件路径；
+- 端口冲突时选择随机空闲端口，不终止其他进程。
+
+## 13. 启动、关闭与打包
+
+`app.py` 支持 `--port`、`--no-browser` 和日志参数。若保留 `--host`，只接受 loopback 地址。监听成功后才打开浏览器。
+
+浏览器关闭不代表后端退出。进程退出时设置全局取消令牌，最多等待任务 3 秒，随后无论任务线程状态如何都通过 `ControllerService` 尝试回中并断开手柄，再关闭捕获和事件分发。若硬件调用本身无法在 3 秒内返回，记录致命错误并继续进程退出；该限制和行为必须用阻塞 stub 测试。
+
+```text
+npm ci
+→ npm run typecheck
+→ npm run test
+→ npm run build
+→ 复制 dist 到 src/gamecurveprobe/web/
+→ pytest
+→ PyInstaller
+→ 启动打包产物执行 smoke test
+```
+
+要求：Vite 开发服务器代理 FastAPI；生产环境托管静态文件并对未知非 API 路径回退 `index.html`；wheel 和 PyInstaller 显式包含 `web/`；spec 收集 vgamepad、WGC 和原生 DLL；依赖缺失时友好降级；构建只清理经过解析验证的前端产物目录；README 和用户指南删除旧启动说明。
+
+## 14. 实施阶段与删除门槛
+
+1. 定义 DTO、错误、结果 schema、事件和状态机，以测试冻结契约；
+2. 重构无框架核心层，实现可取消 runner 和资源服务；
+3. 实现 WGC、统一 DXGI、健康检查、回退和 ROI 坐标；
+4. 实现 FastAPI lifespan、REST、WebSocket、安全和静态托管；
+5. 用 stub 完成后端垂直链路；
+6. 实现 Vue 四阶段闭环，再加入视觉润色和高级图表；
+7. 接入真实硬件，验证异常、取消和退出回中；
+8. 新链路测试通过后删除旧 GUI、IPC、yaw360、动态占位及依赖；
+9. 更新打包、README、用户指南和锁文件；
+10. 删除旧代码后重新执行完整测试和纯净 Windows 打包验收。
+
+删除门槛以新能力的测试覆盖为准，不以“新文件已创建”为准。Git 历史承担回退能力，生产代码不保留废弃适配器。
+
+## 15. 测试矩阵
+
+### 15.1 自动化测试
+
+- 单元：DTO、状态机、排点、取消、ROI、噪声、分类、导入导出；
+- 服务：stub 下的成功、失败、超时、取消和 cleanup，逐项断言 `neutral()`；
+- API：端点、状态码、令牌、Origin、资源冲突、下载和导入限制；
+- WebSocket：事件顺序、重连、慢客户端、最新帧覆盖和队列上限；
+- 前端：store、坐标转换、向导守卫、错误映射和 TSV；
+- E2E：stub 下完成选择窗口、ROI、标定、测量、分析和导出；
+- 打包 smoke：静态资源、SPA fallback、捕获模块导入和控制器缺失降级。
+
+### 15.2 Windows 硬件验收
+
+覆盖 WGC/DXGI、双显卡、多显示器、100/125/150% DPI、窗口缩放/最小化/关闭/跨屏、ViGEmBus 缺失、测量中取消、服务退出、设备丢失和纯净 Windows EXE。
+
+### 15.3 性能与稳定性
+
+- 测量期间 FastAPI 事件循环保持响应；
+- 预览队列和内存有界；
+- 慢客户端不降低捕获或测量速率；
+- 连续运行 30 分钟无持续内存增长；
+- 记录实际捕获性能，不以 120 FPS 必达作为验收承诺。
+
+## 16. 完成定义
+
+以下条件全部满足才视为完成：
+
+1. 最终 EXE 可启动并自动打开 WebUI；
+2. 用户可完成窗口、ROI、底噪、双死区试推、测量、分析和导入导出闭环；
+3. 页面刷新或 WebSocket 重连不会丢失任务状态；
+4. 取消、异常、关闭路径均有证据证明手柄回中；
+5. `auto` 在 WGC 不健康时可尝试 DXGI，并展示诊断；
+6. 结果只含 `px/s` 与归一化速度；
+7. 不存在任意路径写入、宽泛 CORS、无界帧队列或阻塞事件循环；
+8. PySide6、旧 IPC、yaw360、动态占位及引用全部移除；
+9. Python、前端、E2E 和 PyInstaller smoke test 全部通过；
+10. README 与用户指南准确反映最终行为。
