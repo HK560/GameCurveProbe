@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import { soundSynth } from '../services/sound'
-import { X, Keyboard, Volume2, VolumeX, Sparkles, Check } from 'lucide-vue-next'
+import { X, Keyboard, Volume2, VolumeX, Sparkles, Check, Gamepad2 } from 'lucide-vue-next'
 
 const props = defineProps<{
   show: boolean
@@ -19,6 +19,8 @@ const hotkeyEnabled = ref(true)
 const hotkeyStart = ref('F9')
 const hotkeyStop = ref('F10')
 const soundEnabled = ref(true)
+const autoWake = ref(true)
+const wakeInput = ref('right_stick')
 const isSaving = ref(false)
 const isTestingSound = ref(false)
 const saveSuccess = ref(false)
@@ -51,6 +53,8 @@ watch(
       hotkeyStart.value = sessionStore.config.hotkey_start || 'F9'
       hotkeyStop.value = sessionStore.config.hotkey_stop || 'F10'
       soundEnabled.value = sessionStore.config.sound_enabled ?? true
+      autoWake.value = sessionStore.config.auto_wake ?? true
+      wakeInput.value = sessionStore.config.wake_input || 'right_stick'
     }
   },
   { immediate: true }
@@ -65,6 +69,8 @@ async function saveSettings() {
       hotkey_start: hotkeyStart.value,
       hotkey_stop: hotkeyStop.value,
       sound_enabled: soundEnabled.value,
+      auto_wake: autoWake.value,
+      wake_input: wakeInput.value,
     })
     saveSuccess.value = true
     setTimeout(() => {
@@ -72,7 +78,7 @@ async function saveSettings() {
       emit('close')
     }, 600)
   } catch (err: any) {
-    alert(err.message || '快捷键配置更新失败')
+    alert(err.message || '快捷键与唤醒配置更新失败')
   } finally {
     isSaving.value = false
   }
@@ -155,6 +161,40 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
                 </option>
               </select>
             </div>
+          </div>
+        </div>
+
+        <!-- Auto Wake Card -->
+        <div class="space-y-3 p-3.5 bg-neutral-50 border border-neutral-200/70 rounded-xl">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <Gamepad2 class="w-4 h-4 text-neutral-800" />
+              <span class="font-medium text-neutral-900">自动唤醒游戏</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="autoWake" class="sr-only peer" />
+              <div class="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neutral-900"></div>
+            </label>
+          </div>
+          <p class="text-[11px] text-neutral-500 leading-relaxed">
+            开始测定前自动向游戏发送手柄按键脉冲（0.5秒），唤醒游戏并切换至手柄输入模式。
+          </p>
+          <div v-if="autoWake" class="space-y-1 pt-1">
+            <label class="text-[11px] font-medium text-neutral-600">唤醒按键</label>
+            <select
+              v-model="wakeInput"
+              class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
+            >
+              <option value="right_stick">RS（右摇杆按下，默认）</option>
+              <option value="x">X</option>
+              <option value="y">Y</option>
+              <option value="a">A</option>
+              <option value="b">B</option>
+              <option value="left_bumper">LB</option>
+              <option value="right_bumper">RB</option>
+              <option value="left_trigger">LT</option>
+              <option value="right_trigger">RT</option>
+            </select>
           </div>
         </div>
 

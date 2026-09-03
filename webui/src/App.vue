@@ -47,6 +47,14 @@ async function wakeGame() {
   }
 }
 
+async function onWakeInputChange() {
+  try {
+    await sessionStore.updateConfig({ wake_input: wakeInput.value })
+  } catch (err: any) {
+    console.warn('Failed to update wake input config:', err)
+  }
+}
+
 const steps = [
   { id: 1, title: '窗口与抓图', desc: '选择游戏及特征ROI区域', icon: Monitor },
   { id: 2, title: '死区标定', desc: '内外死区交互测定', icon: Target },
@@ -192,6 +200,7 @@ onUnmounted(() => {
               v-model="wakeInput"
               :disabled="isWaking || !connectionStore.controllerEnabled"
               aria-label="选择唤醒按键"
+              @change="onWakeInputChange"
               class="h-7 rounded-md border border-neutral-200 bg-white px-2 text-[11px] text-neutral-600 disabled:opacity-50"
             >
               <option value="right_stick">RS（右摇杆按下）</option>

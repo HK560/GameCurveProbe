@@ -47,6 +47,8 @@ class ConfigUpdateRequest(StrictDto):
     hotkey_start: str | None = None
     hotkey_stop: str | None = None
     sound_enabled: bool | None = None
+    wake_input: str | None = None
+    auto_wake: bool | None = None
 
 
 class DeadzoneRequest(StrictDto):
