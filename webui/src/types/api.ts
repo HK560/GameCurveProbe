@@ -94,11 +94,34 @@ export interface SessionResult {
   warnings?: string[]
 }
 
+export type LogLevel = 'info' | 'action' | 'settle' | 'sampling' | 'warn' | 'success' | 'error'
+
+export interface LogEntry {
+  id: string
+  timestamp: string
+  level: LogLevel
+  message: string
+}
+
+export interface JobProgress {
+  phase?: string
+  current_point?: number
+  total_points?: number
+  input_value?: number
+  message?: string
+  point?: MeasurementPoint
+  range_mode?: string
+  settle_ms?: number
+  sample_ms?: number
+  valid_points?: number
+  [key: string]: any
+}
+
 export interface JobSnapshot {
   id: string
   kind: string
   state: JobState
-  progress?: Record<string, any> | null
+  progress?: JobProgress | null
   result?: any | null
   error?: string | null
   created_at?: string
