@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+import threading
+import time
+from collections.abc import Callable, Mapping
+from statistics import median
+from typing import Any
+
+from gamecurveprobe.constants import MIN_TRACKED_POINTS, MIN_TRACKING_CONFIDENCE
+from gamecurveprobe.errors import JobCanceled
+from gamecurveprobe.models import MeasurementPoint, ProbeConfig, RoiRect, SessionResult
+from gamecurveprobe.services.controller_service import ControllerService
+from gamecurveprobe.services.motion_sampler import MotionSampler
+from gamecurveprobe.vision.motion_estimator import MotionEstimator
+
+
+class MeasurementRunner:
+    """Run cancellable steady-state measurement across configured probe points."""
+
+    def __init__(
+        self,
+        controller: ControllerService,
+        capture_factory: Callable[[], Any],
+        estimator_factory: Callable[[], Any] | None = None,
+        motion_sampler: MotionSampler | None = None,
+        roi: RoiRect | None = None,
+        sleep: Callable[[float], None] | None = None,
+    ) -> None:
+        self._controller = controller
+        self._capture_factory = capture_factory
+        self._estimator_factory = estimator_factory or MotionEstimator
+        self._sampler = motion_sampler or MotionSampler()
+        self._roi = roi
+        self._sleep = sleep
+
+    def run(
+        self,
+        config: ProbeConfig,
+        cancel_event: threading.Event,
+        publish: Callable[[Mapping[str, object]], None],
+    ) -> SessionResult:
+        self._check_cancel(cancel_event)
+        capture = self._capture_factory()
+        estimator = self._estimator_factory()
+        roi = self._roi or RoiRect(0, 0, 100, 100)
+        values = config.point_values()
+        raw_points: list[MeasurementPoint] = []
+
+        try:
+            for index, input_value in enumerate(values, start=1):
+                self._check_cancel(cancel_event)
+                self._controller.neutralize()
+                self._interruptible_wait(0.10, cancel_event)
+
+                if not self._controller.set_right_stick(input_value, 0.0, cancel_event):
+                    raise JobCanceled()
+
+                self._interruptible_wait(config.settle_ms / 1000.0, cancel_event)
+                point = self._measure_point(input_value, config, capture, estimator, roi, cancel_event)
+                raw_points.append(point)
+                publish({
+                    "current_point": index,
+                    "total_points": len(values),
+                    "input_value": input_value,
+                })
+        finally:
+            self._controller.neutralize()
+
+        # Compute normalized_speed relative to max observed velocity
+        valid_velocities = [p.velocity_px_s for p in raw_points if p.valid and p.velocity_px_s is not None]
+        max_velocity = max(valid_velocities, default=0.0)
+
+        final_points: list[MeasurementPoint] = []
+        for p in raw_points:
+            if p.valid and p.velocity_px_s is not None and max_velocity > 0:
+                normalized = round(p.velocity_px_s / max_velocity, 4)
+            else:
+                normalized = None
+            final_points.append(
+                MeasurementPoint(
+                    input=p.input,
+                    velocity_px_s=p.velocity_px_s,
+                    normalized_speed=normalized,
+                    stability=p.stability,
+                    valid=p.valid,
+                    attempts=p.attempts,
+                )
+            )
+
+        return SessionResult(
+            points=tuple(final_points),
+            schema_version=1,
+        )
+
+    def _measure_point(
+        self,
+        input_value: float,
+        config: ProbeConfig,
+        capture: Any,
+        estimator: Any,
+        roi: RoiRect,
+        cancel_event: threading.Event,
+    ) -> MeasurementPoint:
+        velocities: list[float] = []
+        stabilities: list[float] = []
+        total_attempts = 0
+
+        for _ in range(config.repeats):
+            self._check_cancel(cancel_event)
+            estimator.reset()
+            total_attempts += 1
+            sample = self._sampler.sample_filtered(
+                capture,
+                estimator,
+                roi,
+                config.sample_ms,
+                min_tracked_points=MIN_TRACKED_POINTS,
+                min_confidence=MIN_TRACKING_CONFIDENCE,
+                cancel_event=cancel_event,
+            )
+            if sample.canceled:
+                raise JobCanceled()
+
+            if sample.valid_frames > 0 and sample.stability_score < 0.75:
+                # Retry once
+                total_attempts += 1
+                self._check_cancel(cancel_event)
+                estimator.reset()
+                retry_sample = self._sampler.sample_filtered(
+                    capture,
+                    estimator,
+                    roi,
+                    config.sample_ms,
+                    min_tracked_points=MIN_TRACKED_POINTS,
+                    min_confidence=MIN_TRACKING_CONFIDENCE,
+                    cancel_event=cancel_event,
+                )
+                if retry_sample.canceled:
+                    raise JobCanceled()
+                if retry_sample.valid_frames > 0:
+                    sample = retry_sample
+
+            if sample.valid_frames > 0:
+                velocities.append(sample.px_per_sec_x)
+                stabilities.append(sample.stability_score)
+
+        if not velocities:
+            return MeasurementPoint(
+                input=input_value,
+                velocity_px_s=None,
+                normalized_speed=None,
+                stability=0.0,
+                valid=False,
+                attempts=total_attempts,
+            )
+
+        med_velocity = round(float(median(velocities)), 4)
+        avg_stability = round(sum(stabilities) / len(stabilities), 4)
+        return MeasurementPoint(
+            input=input_value,
+            velocity_px_s=med_velocity,
+            normalized_speed=None,
+            stability=avg_stability,
+            valid=True,
+            attempts=total_attempts,
+        )
+
+    def _interruptible_wait(self, duration: float, cancel_event: threading.Event) -> None:
+        if self._sleep is not None:
+            self._sleep(duration)
+            self._check_cancel(cancel_event)
+            return
+
+        start = time.perf_counter()
+        while True:
+            self._check_cancel(cancel_event)
+            remaining = duration - (time.perf_counter() - start)
+            if remaining <= 0:
+                break
+            if cancel_event.wait(min(0.02, remaining)):
+                raise JobCanceled()
+
+    def _check_cancel(self, cancel_event: threading.Event) -> None:
+        if cancel_event.is_set():
+            raise JobCanceled()
