@@ -17,12 +17,20 @@ class VgamepadControllerBackend(VirtualControllerBackend):
 
     _BUTTONS = {
         "right_stick": "XUSB_GAMEPAD_RIGHT_THUMB",
+        "left_stick": "XUSB_GAMEPAD_LEFT_THUMB",
         "x": "XUSB_GAMEPAD_X",
         "y": "XUSB_GAMEPAD_Y",
         "a": "XUSB_GAMEPAD_A",
         "b": "XUSB_GAMEPAD_B",
         "left_bumper": "XUSB_GAMEPAD_LEFT_SHOULDER",
         "right_bumper": "XUSB_GAMEPAD_RIGHT_SHOULDER",
+        "start": "XUSB_GAMEPAD_START",
+        "back": "XUSB_GAMEPAD_BACK",
+        "guide": "XUSB_GAMEPAD_GUIDE",
+        "dpad_up": "XUSB_GAMEPAD_DPAD_UP",
+        "dpad_down": "XUSB_GAMEPAD_DPAD_DOWN",
+        "dpad_left": "XUSB_GAMEPAD_DPAD_LEFT",
+        "dpad_right": "XUSB_GAMEPAD_DPAD_RIGHT",
     }
 
     def __init__(self, module_loader: Callable[[], ModuleType] | None = None) -> None:
@@ -73,8 +81,26 @@ class VgamepadControllerBackend(VirtualControllerBackend):
             self._gamepad.left_trigger(value=255)
         elif input_name == "right_trigger":
             self._gamepad.right_trigger(value=255)
-        else:
+        elif input_name == "left_stick_up":
+            self._gamepad.left_joystick_float(x_value_float=0.0, y_value_float=0.5)
+        elif input_name == "left_stick_down":
+            self._gamepad.left_joystick_float(x_value_float=0.0, y_value_float=-0.5)
+        elif input_name == "left_stick_left":
+            self._gamepad.left_joystick_float(x_value_float=-0.5, y_value_float=0.0)
+        elif input_name == "left_stick_right":
+            self._gamepad.left_joystick_float(x_value_float=0.5, y_value_float=0.0)
+        elif input_name == "right_stick_up":
+            self._gamepad.right_joystick_float(x_value_float=0.0, y_value_float=0.5)
+        elif input_name == "right_stick_down":
+            self._gamepad.right_joystick_float(x_value_float=0.0, y_value_float=-0.5)
+        elif input_name == "right_stick_left":
+            self._gamepad.right_joystick_float(x_value_float=-0.5, y_value_float=0.0)
+        elif input_name == "right_stick_right":
+            self._gamepad.right_joystick_float(x_value_float=0.5, y_value_float=0.0)
+        elif input_name in self._BUTTONS:
             self._gamepad.press_button(button=getattr(self._module_loader().XUSB_BUTTON, self._BUTTONS[input_name]))
+        else:
+            raise ValueError(f"Unknown wake input: {input_name}")
         self._gamepad.update()
 
     def release_wake_input(self, input_name: str) -> None:
@@ -84,7 +110,11 @@ class VgamepadControllerBackend(VirtualControllerBackend):
             self._gamepad.left_trigger(value=0)
         elif input_name == "right_trigger":
             self._gamepad.right_trigger(value=0)
-        else:
+        elif input_name in ("left_stick_up", "left_stick_down", "left_stick_left", "left_stick_right"):
+            self._gamepad.left_joystick_float(x_value_float=0.0, y_value_float=0.0)
+        elif input_name in ("right_stick_up", "right_stick_down", "right_stick_left", "right_stick_right"):
+            self._gamepad.right_joystick_float(x_value_float=0.0, y_value_float=0.0)
+        elif input_name in self._BUTTONS:
             self._gamepad.release_button(button=getattr(self._module_loader().XUSB_BUTTON, self._BUTTONS[input_name]))
         self._gamepad.update()
 
