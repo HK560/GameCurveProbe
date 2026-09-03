@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import RoiSelector from './RoiSelector.vue'
 import QualityBadge from './QualityBadge.vue'
@@ -16,6 +16,16 @@ const errorMessage = ref<string | null>(null)
 const isAttached = computed(() => !!sessionStore.capture)
 const captureInfo = computed(() => sessionStore.capture)
 const roiQuality = computed(() => sessionStore.roiQuality)
+
+watch(
+  () => sessionStore.capture,
+  (cap) => {
+    if (cap?.window_id) {
+      selectedWindowId.value = cap.window_id
+    }
+  },
+  { immediate: true }
+)
 
 async function refreshWindows() {
   errorMessage.value = null
@@ -108,6 +118,7 @@ function proceedToDeadzone() {
       <!-- Action Button -->
       <div class="lg:col-span-2">
         <button
+          type="button"
           @click="handleAttach"
           :disabled="!selectedWindowId || sessionStore.isAttaching"
           class="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-md shadow-indigo-600/30 flex items-center justify-center space-x-2 transition cursor-pointer"

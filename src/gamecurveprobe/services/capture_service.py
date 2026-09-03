@@ -1,25 +1,35 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from typing import Any
 
+import cv2
 import numpy as np
 
 from gamecurveprobe.backends.capture.base import CaptureBackend, Frame
 from gamecurveprobe.errors import DomainError
+from gamecurveprobe.events import PreviewFrame
 from gamecurveprobe.models import CaptureHealth, CaptureInfo
 
 
 class CaptureService:
     """Manages backend selection, health evaluation, and frame distribution."""
 
-    def __init__(self, backends: Mapping[str, CaptureBackend]) -> None:
+    def __init__(
+        self,
+        backends: Mapping[str, CaptureBackend],
+        preview_callback: Callable[[PreviewFrame], None] | None = None,
+    ) -> None:
         self._backends = dict(backends)
+        self._preview_callback = preview_callback
         self._active_backend: CaptureBackend | None = None
         self._active_info: CaptureInfo | None = None
         self._lock = threading.RLock()
         self._latest_frame: Frame | None = None
+        self._stop_preview = threading.Event()
+        self._preview_thread: threading.Thread | None = None
 
     @property
     def active_backend_name(self) -> str | None:
@@ -45,6 +55,7 @@ class CaptureService:
                     info = self._attach_and_validate(backend, window_id, fps)
                     self._active_backend = backend
                     self._active_info = info
+                    self._start_preview_worker()
                     return info
                 except DomainError as exc:
                     failures.append(exc)
@@ -66,6 +77,47 @@ class CaptureService:
         self._latest_frame = frame
         return info
 
+    def _start_preview_worker(self) -> None:
+        self._stop_preview.clear()
+        if self._preview_callback is not None:
+            self._preview_thread = threading.Thread(
+                target=self._preview_loop,
+                daemon=True,
+                name="CapturePreviewWorker",
+            )
+            self._preview_thread.start()
+
+    def _preview_loop(self) -> None:
+        seq = 0
+        while not self._stop_preview.is_set():
+            with self._lock:
+                backend = self._active_backend
+            if backend is None:
+                time.sleep(0.05)
+                continue
+
+            frame = backend.read(timeout_ms=50)
+            if frame is not None and frame.image is not None and self._preview_callback is not None:
+                with self._lock:
+                    self._latest_frame = frame
+                try:
+                    success, encoded = cv2.imencode(".jpg", frame.image, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                    if success:
+                        preview = PreviewFrame(
+                            seq=seq,
+                            frame_id=frame.frame_id,
+                            monotonic_ns=frame.monotonic_ns,
+                            width=frame.image.shape[1],
+                            height=frame.image.shape[0],
+                            jpeg=encoded.tobytes(),
+                        )
+                        seq += 1
+                        self._preview_callback(preview)
+                except Exception:
+                    pass
+
+            time.sleep(0.033)
+
     def read_latest(self, timeout_ms: int = 100) -> Frame | None:
         with self._lock:
             if self._active_backend is None:
@@ -82,6 +134,11 @@ class CaptureService:
             return self._active_backend.health()
 
     def close(self) -> None:
+        self._stop_preview.set()
+        if self._preview_thread is not None and self._preview_thread.is_alive():
+            self._preview_thread.join(timeout=0.3)
+            self._preview_thread = None
+
         with self._lock:
             if self._active_backend is not None:
                 try:

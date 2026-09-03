@@ -41,12 +41,15 @@ def build_context(token: str, host: str, port: int) -> AppContext:
     controller = ControllerService(controller_backend)
 
     window_service = WindowService()
+    events = EventHub()
     wgc_backend = WgcCaptureBackend()
     dxcam_backend = DxcamCaptureBackend(window_service=window_service)
-    capture = CaptureService({"wgc": wgc_backend, "dxcam": dxcam_backend})
+    capture = CaptureService(
+        {"wgc": wgc_backend, "dxcam": dxcam_backend},
+        preview_callback=events.publish_preview,
+    )
 
     session = SessionService()
-    events = EventHub()
     jobs = JobManager(
         publish=lambda ev: events.publish("job_event", ev),
     )
