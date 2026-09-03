@@ -6,6 +6,8 @@ from typing import Any, Callable
 
 import numpy as np
 
+from gamecurveprobe.backends.capture.base import Frame
+from gamecurveprobe.models import CaptureHealth, CaptureInfo
 from gamecurveprobe.services.window_service import WindowService
 
 
@@ -22,6 +24,8 @@ class CapturedMonitorFrame:
 class DxcamMonitorCaptureBackend:
     """Capture a target window by sampling its containing monitor via dxcam."""
 
+    name = "dxcam"
+
     def __init__(
         self,
         window_service: WindowService,
@@ -37,11 +41,22 @@ class DxcamMonitorCaptureBackend:
         self._monitor_id: int | None = None
         self._frame_id = 0
         self._last_frame: np.ndarray | None = None
+        self._timestamps: list[float] = []
+        self._duplicates = 0
+        self._closed = True
 
     def list_windows(self) -> list[dict[str, Any]]:
         return [item.to_dict() for item in self._window_service.list_windows()]
 
-    def attach(self, window_id: int, capture_fps: int) -> None:
+    def attach(
+        self,
+        window_id: int,
+        target_fps: int = 120,
+        *,
+        capture_fps: int | None = None,
+    ) -> CaptureInfo:
+        fps = capture_fps if capture_fps is not None else target_fps
+        self.close()
         self._window_service.get_window(window_id)
         window_rect = self._window_service.get_client_rect(window_id)
         monitor = self._window_service.get_monitor_for_rect(window_rect)
@@ -52,11 +67,37 @@ class DxcamMonitorCaptureBackend:
         self._monitor_rect = tuple(monitor["monitor_rect"])
         self._window_rect = window_rect
         self._camera = self._camera_factory(self._monitor_id)
-        self._camera.start(target_fps=int(capture_fps), video_mode=True)
+        self._camera.start(target_fps=int(fps), video_mode=True)
         self._frame_id = 0
         self._last_frame = None
+        self._timestamps.clear()
+        self._duplicates = 0
+        self._closed = False
+        window = self._window_service.get_window(window_id)
+        return CaptureInfo(
+            window_id=window_id,
+            backend=self.name,
+            width=window_rect[2] - window_rect[0],
+            height=window_rect[3] - window_rect[1],
+            target_fps=fps,
+            title=window.title,
+            occlusion_safe=False,
+        )
 
     def grab_frame(self) -> CapturedMonitorFrame | None:
+        normalized = self.read(100)
+        if normalized is None or self._monitor_id is None or self._window_rect is None:
+            return None
+        return CapturedMonitorFrame(
+            frame=normalized.image,
+            timestamp=normalized.timestamp,
+            frame_id=normalized.frame_id,
+            is_duplicate=normalized.is_duplicate,
+            monitor_id=self._monitor_id,
+            window_rect=self._window_rect,
+        )
+
+    def read(self, timeout_ms: int = 100) -> Frame | None:
         if self._camera is None or self._window_rect is None or self._monitor_rect is None or self._monitor_id is None:
             return None
 
@@ -66,15 +107,31 @@ class DxcamMonitorCaptureBackend:
 
         frame = self._crop_window_from_monitor_frame(np.asarray(monitor_frame))
         is_duplicate = self._last_frame is not None and np.array_equal(self._last_frame, frame)
+        if is_duplicate:
+            self._duplicates += 1
         self._last_frame = frame
         self._frame_id += 1
-        return CapturedMonitorFrame(
-            frame=frame,
-            timestamp=float(self._time_source()),
+        timestamp = float(self._time_source())
+        self._timestamps.append(timestamp)
+        if len(self._timestamps) > 60:
+            self._timestamps.pop(0)
+        return Frame(
+            image=frame,
+            monotonic_ns=int(timestamp * 1_000_000_000),
             frame_id=self._frame_id,
             is_duplicate=is_duplicate,
-            monitor_id=self._monitor_id,
-            window_rect=self._window_rect,
+        )
+
+    def health(self) -> CaptureHealth:
+        if len(self._timestamps) >= 2:
+            elapsed = self._timestamps[-1] - self._timestamps[0]
+            fps = (len(self._timestamps) - 1) / elapsed if elapsed > 0 else 0.0
+        else:
+            fps = 0.0
+        return CaptureHealth(
+            is_healthy=not self._closed and self._camera is not None,
+            fps=round(fps, 1),
+            duplicate_ratio=self._duplicates / max(1, self._frame_id),
         )
 
     def close(self) -> None:
@@ -89,6 +146,9 @@ class DxcamMonitorCaptureBackend:
         self._monitor_id = None
         self._frame_id = 0
         self._last_frame = None
+        self._timestamps.clear()
+        self._duplicates = 0
+        self._closed = True
 
     def _crop_window_from_monitor_frame(self, frame: np.ndarray) -> np.ndarray:
         assert self._window_rect is not None
@@ -104,7 +164,7 @@ class DxcamMonitorCaptureBackend:
     def _default_camera_factory(self, output_idx: int) -> object:
         import dxcam
 
-        camera = dxcam.create(output_idx=output_idx)
+        camera = dxcam.create(output_idx=output_idx, output_color="BGR")
         if camera is None:
             raise RuntimeError(f"dxcam could not create a capture device for output {output_idx}.")
         return camera

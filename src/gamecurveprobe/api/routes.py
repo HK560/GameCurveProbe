@@ -11,6 +11,7 @@ from gamecurveprobe.api.auth import require_token, verify_origin
 from gamecurveprobe.api.schemas import (
     CaptureAttachRequest,
     ConfigUpdateRequest,
+    DeadzoneRequest,
     HealthResponse,
     JobResponse,
     JobStartRequest,
@@ -35,7 +36,7 @@ def get_context(request: Request) -> AppContext:
 
 @router.get("/health", response_model=HealthResponse)
 def health(context: AppContext = Depends(get_context)) -> dict[str, Any]:
-    return {"status": "ok", "controller_ready": True}
+    return {"status": "ok", "controller_ready": context.controller.is_available()}
 
 
 @router.get("/windows", response_model=WindowsListResponse, dependencies=[Depends(verify_origin), Depends(require_token)])
@@ -67,6 +68,16 @@ def attach_capture(req: CaptureAttachRequest, context: AppContext = Depends(get_
     return {"capture": info_dict}
 
 
+@router.post("/capture/detach", dependencies=[Depends(verify_origin), Depends(require_token)])
+def detach_capture(context: AppContext = Depends(get_context)) -> dict[str, Any]:
+    context.capture.close()
+    context.session.update_capture(None)
+    context.session.update_roi(None)
+    context.session.update_roi_quality(None)
+    context.events.publish("capture_changed", {"capture": None})
+    return {"capture": None}
+
+
 @router.get("/capture/health", dependencies=[Depends(verify_origin), Depends(require_token)])
 def get_capture_health(context: AppContext = Depends(get_context)) -> dict[str, Any]:
     h = context.capture.health()
@@ -85,6 +96,18 @@ def get_session(context: AppContext = Depends(get_context)) -> Any:
 def update_config(req: ConfigUpdateRequest, context: AppContext = Depends(get_context)) -> Any:
     payload = {k: v for k, v in req.model_dump().items() if v is not None}
     context.session.update_config(payload)
+    context.events.publish("config_updated", {"config": context.session.config_snapshot()})
+    return context.session.snapshot()
+
+
+@router.get("/session/config", dependencies=[Depends(verify_origin), Depends(require_token)])
+def get_config(context: AppContext = Depends(get_context)) -> Any:
+    return {"config": context.session.config_snapshot()}
+
+
+@router.put("/session/deadzones", response_model=SessionResponse, dependencies=[Depends(verify_origin), Depends(require_token)])
+def update_deadzones(req: DeadzoneRequest, context: AppContext = Depends(get_context)) -> Any:
+    context.session.update_config(req.model_dump())
     context.events.publish("config_updated", {"config": context.session.config_snapshot()})
     return context.session.snapshot()
 
@@ -132,38 +155,76 @@ def stop_deadzone_probe(context: AppContext = Depends(get_context)) -> dict[str,
 
 @router.post("/jobs/measurement", status_code=status.HTTP_202_ACCEPTED, response_model=JobResponse, dependencies=[Depends(verify_origin), Depends(require_token)])
 def start_measurement_job(req: JobStartRequest, context: AppContext = Depends(get_context)) -> Any:
-    cfg = context.session.config_snapshot()
+    session = context.session.snapshot()
+    cfg = session.config
     if req.range_mode is not None:
         cfg = context.session.update_config({"range_mode": req.range_mode})
 
-    # Ensure controller connected
-    context.controller.connect()
+    if session.capture is None:
+        raise DomainError("CAPTURE_REQUIRED", "Attach a capture source before starting measurement.")
+    if session.roi is None:
+        raise DomainError("ROI_REQUIRED", "Select an ROI before starting measurement.")
+
+    context.capture.assert_ready(session.roi)
+
+    context.controller.acquire("measurement")
 
     def runner(cancel_event, publish):
-        result = context.measurement.run(cfg, cancel_event, publish)
-        # Classify curve
-        analysis = classify_curve(result.points)
-        final_result = SessionResult(
-            points=result.points,
-            noise=result.noise,
-            analysis=analysis,
-            schema_version=result.schema_version,
-            measured_at=result.measured_at,
-        )
-        context.session.set_last_result(final_result)
-        return final_result
+        try:
+            result = context.measurement.run(
+                cfg,
+                cancel_event,
+                publish,
+                roi=session.roi,
+                noise=session.noise,
+            )
+            analysis = classify_curve(result.points)
+            final_result = SessionResult(
+                points=result.points,
+                noise=result.noise,
+                analysis=analysis,
+                schema_version=result.schema_version,
+                measured_at=result.measured_at,
+                session_id=session.id,
+                environment={
+                    "window_title": session.capture.title,
+                    "capture_backend": session.capture.backend,
+                    "requested_fps": session.capture.target_fps,
+                    "actual_fps": context.capture.health().fps,
+                    "frame_size": [session.capture.width, session.capture.height],
+                    "roi": asdict(session.roi),
+                },
+                config=asdict(cfg),
+                warnings=(),
+            )
+            context.session.set_last_result(final_result)
+            return final_result
+        finally:
+            context.controller.release("measurement")
 
-    job = context.jobs.start("measurement", runner)
+    try:
+        job = context.jobs.start("measurement", runner)
+    except Exception:
+        context.controller.release("measurement")
+        raise
     context.session.set_active_job(job)
     return job
 
 
 @router.post("/jobs/idle-noise", status_code=status.HTTP_202_ACCEPTED, response_model=JobResponse, dependencies=[Depends(verify_origin), Depends(require_token)])
 def start_idle_noise_job(context: AppContext = Depends(get_context)) -> Any:
-    cfg = context.session.config_snapshot()
+    session = context.session.snapshot()
+    cfg = session.config
+    if session.capture is None:
+        raise DomainError("CAPTURE_REQUIRED", "Attach a capture source before measuring idle noise.")
+    if session.roi is None:
+        raise DomainError("ROI_REQUIRED", "Select an ROI before measuring idle noise.")
+
+    context.capture.assert_ready(session.roi)
 
     def runner(cancel_event, publish):
-        noise = context.idle_noise.run(cfg, cancel_event, publish)
+        noise = context.idle_noise.run(cfg, cancel_event, publish, roi=session.roi)
+        context.session.set_noise(noise)
         # If session has last result, attach noise
         last_res = context.session.snapshot().last_result
         if last_res is not None:
@@ -173,6 +234,10 @@ def start_idle_noise_job(context: AppContext = Depends(get_context)) -> Any:
                 analysis=last_res.analysis,
                 schema_version=last_res.schema_version,
                 measured_at=last_res.measured_at,
+                session_id=last_res.session_id,
+                environment=last_res.environment,
+                config=last_res.config,
+                warnings=last_res.warnings,
             )
             context.session.set_last_result(updated)
         return noise
@@ -214,10 +279,17 @@ def export_result(format: str = Query("json", pattern="^(json|csv)$"), context: 
     )
 
 
+@router.get("/result", dependencies=[Depends(verify_origin), Depends(require_token)])
+def get_result(context: AppContext = Depends(get_context)) -> SessionResult:
+    result = context.session.snapshot().last_result
+    if result is None:
+        raise DomainError("NO_RESULT", "No measurement result is available.")
+    return result
+
+
 @router.post("/result/import", dependencies=[Depends(verify_origin), Depends(require_token)])
 async def import_result(request: Request, context: AppContext = Depends(get_context)) -> dict[str, Any]:
     body = await request.body()
     result = context.export.import_json(body)
-    context.session.set_last_result(result)
     context.events.publish("result_imported", {"result": result})
     return {"result": result}

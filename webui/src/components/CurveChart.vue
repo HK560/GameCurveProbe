@@ -1,22 +1,29 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import * as echarts from 'echarts'
+import { init, graphic, use, type EChartsType } from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { CanvasRenderer } from 'echarts/renderers'
+import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
 import type { MeasurementPoint } from '../types/api'
+import { buildVelocitySeries } from '../services/chartSeries'
+
+use([LineChart, CanvasRenderer, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent])
 
 const props = defineProps<{
   points: MeasurementPoint[]
+  importedPoints?: MeasurementPoint[]
   innerDeadzone?: number
   outerDeadzone?: number
 }>()
 
 const chartContainer = ref<HTMLDivElement | null>(null)
-let chartInstance: echarts.ECharts | null = null
+let chartInstance: EChartsType | null = null
 let resizeObserver: ResizeObserver | null = null
 
 function updateChart() {
   if (!chartInstance) return
 
-  const velocityData = props.points.map((p) => [p.input, p.velocity_px_s])
+  const velocitySeries = buildVelocitySeries(props.points, props.importedPoints)
   const normalizedData = props.points.map((p) => [p.input, p.normalized_speed])
 
   const markLines: any[] = []
@@ -51,7 +58,7 @@ function updateChart() {
     })
   }
 
-  const option: echarts.EChartsOption = {
+  const option: any = {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
@@ -78,7 +85,7 @@ function updateChart() {
       },
     },
     legend: {
-      data: ['角速度 (px/s)', '归一化响应'],
+      data: [...velocitySeries.map((series) => series.name), '归一化响应'],
       textStyle: { color: '#94a3b8' },
       top: 0,
       right: 16,
@@ -131,24 +138,24 @@ function updateChart() {
       },
     ],
     series: [
-      {
-        name: '角速度 (px/s)',
+      ...velocitySeries.map((series) => ({
+        name: series.name,
         type: 'line',
         yAxisIndex: 0,
-        data: velocityData,
+        data: series.data,
         smooth: 0.2,
         showSymbol: true,
         symbolSize: 6,
-        itemStyle: { color: '#6366f1' },
-        lineStyle: { width: 3, color: '#6366f1' },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        itemStyle: { color: series.imported ? '#f59e0b' : '#6366f1' },
+        lineStyle: { width: series.imported ? 2 : 3, type: series.imported ? 'dashed' : 'solid', color: series.imported ? '#f59e0b' : '#6366f1' },
+        areaStyle: series.imported ? undefined : {
+          color: new graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: 'rgba(99, 102, 241, 0.35)' },
             { offset: 1, color: 'rgba(99, 102, 241, 0.0)' },
           ]),
         },
         markLine: markLines.length > 0 ? { data: markLines, symbol: 'none' } : undefined,
-      },
+      })),
       {
         name: '归一化响应',
         type: 'line',
@@ -167,7 +174,7 @@ function updateChart() {
 
 onMounted(() => {
   if (chartContainer.value) {
-    chartInstance = echarts.init(chartContainer.value)
+    chartInstance = init(chartContainer.value)
     updateChart()
 
     resizeObserver = new ResizeObserver(() => {
@@ -184,7 +191,7 @@ onUnmounted(() => {
 })
 
 watch(
-  () => [props.points, props.innerDeadzone, props.outerDeadzone],
+  () => [props.points, props.importedPoints, props.innerDeadzone, props.outerDeadzone],
   () => {
     updateChart()
   },

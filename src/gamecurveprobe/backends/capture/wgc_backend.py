@@ -21,23 +21,33 @@ class WgcCaptureBackend(CaptureBackend):
         self._condition = threading.Condition(self._lock)
         self._latest_frame: Frame | None = None
         self._frame_counter = 0
+        self._last_read_frame_id = 0
         self._duplicate_counter = 0
         self._closed = False
         self._width = 0
         self._height = 0
         self._window_id: int | None = None
         self._fps_tracker: list[float] = []
+        self._generation = 0
 
     def attach(self, window_id: int, target_fps: int = 120) -> CaptureInfo:
         self.close()
         with self._condition:
+            self._generation += 1
+            generation = self._generation
             self._closed = False
             self._window_id = window_id
             self._latest_frame = None
+            self._last_read_frame_id = 0
+            self._frame_counter = 0
+            self._fps_tracker.clear()
 
         if self._capture_impl is not None:
-            self._capture_control = self._capture_impl(window_id, self._handle_raw_frame)
-            frame = self.read(timeout_ms=500)
+            self._capture_control = self._capture_impl(
+                window_id,
+                lambda raw: self._handle_raw_frame(raw, generation),
+            )
+            frame = self._wait_for_initial_frame(timeout_ms=500)
             width = frame.image.shape[1] if frame is not None else 1920
             height = frame.image.shape[0] if frame is not None else 1080
             self._width = width
@@ -48,6 +58,7 @@ class WgcCaptureBackend(CaptureBackend):
                 width=width,
                 height=height,
                 target_fps=target_fps,
+                occlusion_safe=True,
             )
 
         try:
@@ -63,24 +74,27 @@ class WgcCaptureBackend(CaptureBackend):
 
             @cap.event
             def on_frame_arrived(native_frame: Any, control: Any) -> None:
-                if self._closed:
+                if self._closed or generation != self._generation:
                     try:
                         control.stop()
                     except Exception:
                         pass
                     return
                 raw = getattr(native_frame, "frame_buffer", native_frame)
-                self._handle_raw_frame(raw)
+                self._handle_raw_frame(raw, generation)
 
             @cap.event
             def on_closed() -> None:
-                self._closed = True
+                with self._condition:
+                    if generation == self._generation:
+                        self._closed = True
+                        self._condition.notify_all()
 
             self._capture_control = cap.start_free_threaded()
         except Exception as exc:
             raise DomainError("CAPTURE_ATTACH_FAILED", f"Failed to attach WGC to window {window_id}: {exc}") from exc
 
-        frame = self.read(timeout_ms=1500)
+        frame = self._wait_for_initial_frame(timeout_ms=1500)
         if frame is None:
             self.close()
             raise DomainError("CAPTURE_STALLED", f"WGC capture stalled during startup on window {window_id}.")
@@ -94,9 +108,18 @@ class WgcCaptureBackend(CaptureBackend):
             width=self._width,
             height=self._height,
             target_fps=target_fps,
+            occlusion_safe=True,
         )
 
-    def _handle_raw_frame(self, raw_buffer: np.ndarray) -> None:
+    def _wait_for_initial_frame(self, timeout_ms: int) -> Frame | None:
+        with self._condition:
+            self._condition.wait_for(
+                lambda: self._latest_frame is not None or self._closed,
+                timeout=max(0.0, timeout_ms / 1000.0),
+            )
+            return self._latest_frame
+
+    def _handle_raw_frame(self, raw_buffer: np.ndarray, generation: int | None = None) -> None:
         try:
             bgr = to_bgr(raw_buffer)
         except Exception:
@@ -104,6 +127,8 @@ class WgcCaptureBackend(CaptureBackend):
 
         now_ns = time.perf_counter_ns()
         with self._condition:
+            if generation is not None and generation != self._generation:
+                return
             self._frame_counter += 1
             self._width = bgr.shape[1]
             self._height = bgr.shape[0]
@@ -121,18 +146,19 @@ class WgcCaptureBackend(CaptureBackend):
     def read(self, timeout_ms: int = 100) -> Frame | None:
         timeout_sec = timeout_ms / 1000.0
         with self._condition:
-            if self._latest_frame is not None and timeout_ms <= 0:
+            if self._latest_frame is not None and self._latest_frame.frame_id > self._last_read_frame_id:
+                self._last_read_frame_id = self._latest_frame.frame_id
                 return self._latest_frame
-            current_id = self._latest_frame.frame_id if self._latest_frame is not None else 0
             start = time.perf_counter()
             while not self._closed:
-                if self._latest_frame is not None and self._latest_frame.frame_id > current_id:
+                if self._latest_frame is not None and self._latest_frame.frame_id > self._last_read_frame_id:
+                    self._last_read_frame_id = self._latest_frame.frame_id
                     return self._latest_frame
                 remaining = timeout_sec - (time.perf_counter() - start)
                 if remaining <= 0:
                     break
                 self._condition.wait(min(0.05, remaining))
-            return self._latest_frame
+            return None
 
     def health(self) -> CaptureHealth:
         with self._lock:
@@ -142,20 +168,32 @@ class WgcCaptureBackend(CaptureBackend):
             else:
                 fps = 0.0
             is_healthy = not self._closed and self._latest_frame is not None
+            frame_id = self._latest_frame.frame_id if self._latest_frame is not None else 0
+            frame_age_ms = (
+                max(0.0, (time.perf_counter_ns() - self._latest_frame.monotonic_ns) / 1_000_000)
+                if self._latest_frame is not None
+                else None
+            )
             return CaptureHealth(
                 is_healthy=is_healthy,
                 fps=fps,
                 duplicate_ratio=0.0,
+                frame_id=frame_id,
+                frame_age_ms=frame_age_ms,
             )
 
     def close(self) -> None:
         with self._condition:
+            self._generation += 1
             self._closed = True
-            if self._capture_control is not None:
-                try:
-                    if hasattr(self._capture_control, "stop"):
-                        self._capture_control.stop()
-                except Exception:
-                    pass
-                self._capture_control = None
+            capture_control = self._capture_control
+            self._capture_control = None
             self._condition.notify_all()
+        # A capture implementation may synchronously finish its callback while
+        # stopping.  Do not hold the callback condition lock during stop().
+        if capture_control is not None:
+            try:
+                if hasattr(capture_control, "stop"):
+                    capture_control.stop()
+            except Exception:
+                pass

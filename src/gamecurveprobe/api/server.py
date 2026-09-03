@@ -34,7 +34,8 @@ def create_app(
     # CORS support for localhost development
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1:*", "http://localhost:*", "*"],
+        allow_origins=[],
+        allow_origin_regex=r"^http://(?:127\.0\.0\.1|localhost)(?::\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -43,7 +44,7 @@ def create_app(
     @app.exception_handler(DomainError)
     async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
         status_code = 400
-        if exc.code == "RESOURCE_BUSY":
+        if exc.code in {"RESOURCE_BUSY", "CONTROLLER_RESOURCE_BUSY"}:
             status_code = 409
         elif exc.code in {"JOB_NOT_FOUND", "BACKEND_NOT_FOUND"}:
             status_code = 404
@@ -72,9 +73,6 @@ def create_app(
 
             @app.get("/{full_path:path}", include_in_schema=False)
             async def serve_spa(full_path: str):
-                requested_path = static_dir / full_path
-                if full_path and requested_path.is_file():
-                    return FileResponse(requested_path)
                 return FileResponse(index_file)
 
     return app

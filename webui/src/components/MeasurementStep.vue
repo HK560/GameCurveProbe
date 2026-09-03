@@ -89,8 +89,7 @@ function proceedToAnalysis() {
             class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition disabled:opacity-50"
           >
             <option value="full">全范围 (内死区至外死区)</option>
-            <option value="outer_only">仅外死区段 (0.7 ~ 1.0)</option>
-            <option value="deadzone_only">仅死区段 (0.0 ~ 0.2)</option>
+            <option value="active_range">有效行程（内死区至外死区）</option>
           </select>
         </div>
 

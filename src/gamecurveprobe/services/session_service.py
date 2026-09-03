@@ -9,6 +9,7 @@ from uuid import uuid4
 from gamecurveprobe.models import (
     CaptureInfo,
     JobSnapshot,
+    NoiseResult,
     ProbeConfig,
     RoiQuality,
     RoiRect,
@@ -29,6 +30,7 @@ class SessionService:
         self._last_job: JobSnapshot | None = None
         self._active_job: JobSnapshot | None = None
         self._last_result: SessionResult | None = None
+        self._noise: NoiseResult | None = None
         self._lock = threading.RLock()
 
     @property
@@ -73,6 +75,14 @@ class SessionService:
         with self._lock:
             self._last_result = result
 
+    def set_noise(self, noise: NoiseResult | None) -> None:
+        with self._lock:
+            self._noise = noise
+
+    def noise_snapshot(self) -> NoiseResult | None:
+        with self._lock:
+            return copy.deepcopy(self._noise)
+
     def snapshot(self) -> SessionSnapshot:
         with self._lock:
             return copy.deepcopy(
@@ -85,5 +95,6 @@ class SessionService:
                     last_job=self._last_job,
                     active_job=self._active_job,
                     last_result=self._last_result,
+                    noise=self._noise,
                 )
             )

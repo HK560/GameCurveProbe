@@ -11,7 +11,7 @@ from typing import Sequence
 import uvicorn
 
 from gamecurveprobe.api.server import create_app
-from gamecurveprobe.backends.capture.dxcam_backend import DxcamCaptureBackend
+from gamecurveprobe.backends.capture.dxcam_monitor_backend import DxcamMonitorCaptureBackend
 from gamecurveprobe.backends.capture.wgc_backend import WgcCaptureBackend
 from gamecurveprobe.backends.controller.vgamepad_backend import VgamepadControllerBackend
 from gamecurveprobe.context import AppContext
@@ -29,7 +29,12 @@ from gamecurveprobe.services.window_service import WindowService
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="GameCurveProbe 2.0 Web Application Server")
-    parser.add_argument("--host", default="127.0.0.1", help="Host address to bind to (default: 127.0.0.1)")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        choices=("127.0.0.1", "localhost", "::1"),
+        help="Loopback host address to bind to (default: 127.0.0.1)",
+    )
     parser.add_argument("--port", type=int, default=8765, help="Port to listen on (default: 8765)")
     parser.add_argument("--token", default=None, help="Authentication token (generated automatically if omitted)")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the browser automatically on startup")
@@ -43,12 +48,12 @@ def build_context(token: str, host: str, port: int) -> AppContext:
     window_service = WindowService()
     events = EventHub()
     wgc_backend = WgcCaptureBackend()
-    dxcam_backend = DxcamCaptureBackend(window_service=window_service)
+    dxcam_backend = DxcamMonitorCaptureBackend(window_service=window_service)
     capture = CaptureService(
         {"wgc": wgc_backend, "dxcam": dxcam_backend},
         preview_callback=events.publish_preview,
+        window_service=window_service,
     )
-
     session = SessionService()
     jobs = JobManager(
         publish=lambda ev: events.publish("job_event", ev),
@@ -89,6 +94,10 @@ def build_context(token: str, host: str, port: int) -> AppContext:
     )
 
 
+def build_browser_url(host: str, port: int, token: str) -> str:
+    return f"http://{host}:{port}/#token={token}"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     token = args.token or secrets.token_urlsafe(16)
@@ -101,7 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         static_dir=static_dir,
     )
 
-    url = f"http://{host}:{port}/?token={token}"
+    url = build_browser_url(host, port, token)
     print("\n" + "=" * 60)
     print(" GameCurveProbe 2.0 WebUI Server")
     print(f" Web Interface: {url}")

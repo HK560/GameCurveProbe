@@ -13,6 +13,9 @@ class FakeUser32:
     def IsWindow(self, hwnd: int) -> bool:  # noqa: N802
         return hwnd == 123
 
+    def IsIconic(self, hwnd: int) -> bool:  # noqa: N802
+        return False
+
     def GetClientRect(self, hwnd: int, rect) -> int:  # noqa: N802
         assert hwnd == 123
         target = rect._obj
@@ -51,3 +54,23 @@ def test_get_client_rect_rejects_unknown_windows(monkeypatch) -> None:
         assert str(exc) == "Window 999 was not found."
     else:
         raise AssertionError("Expected ValueError for an unknown window.")
+
+
+def test_inspect_window_reports_normal_client_size(monkeypatch) -> None:
+    monkeypatch.setattr(window_service_module, "user32", FakeUser32())
+
+    state = WindowService().inspect_window(123)
+
+    assert state.exists is True
+    assert state.minimized is False
+    assert (state.client_width, state.client_height) == (640, 480)
+
+
+def test_inspect_window_distinguishes_minimized_and_closed(monkeypatch) -> None:
+    fake = FakeUser32()
+    fake.IsIconic = lambda hwnd: hwnd == 123
+    monkeypatch.setattr(window_service_module, "user32", fake)
+    service = WindowService()
+
+    assert service.inspect_window(123).minimized is True
+    assert service.inspect_window(999).exists is False

@@ -7,8 +7,8 @@ from statistics import median
 from typing import Any
 
 from gamecurveprobe.constants import MIN_TRACKED_POINTS, MIN_TRACKING_CONFIDENCE
-from gamecurveprobe.errors import JobCanceled
-from gamecurveprobe.models import MeasurementPoint, ProbeConfig, RoiRect, SessionResult
+from gamecurveprobe.errors import DomainError, JobCanceled
+from gamecurveprobe.models import MeasurementPoint, NoiseResult, ProbeConfig, RoiRect, SessionResult
 from gamecurveprobe.services.controller_service import ControllerService
 from gamecurveprobe.services.motion_sampler import MotionSampler
 from gamecurveprobe.vision.motion_estimator import MotionEstimator
@@ -38,11 +38,16 @@ class MeasurementRunner:
         config: ProbeConfig,
         cancel_event: threading.Event,
         publish: Callable[[Mapping[str, object]], None],
+        *,
+        roi: RoiRect | None = None,
+        noise: NoiseResult | None = None,
     ) -> SessionResult:
         self._check_cancel(cancel_event)
         capture = self._capture_factory()
         estimator = self._estimator_factory()
-        roi = self._roi or RoiRect(0, 0, 100, 100)
+        selected_roi = roi or self._roi
+        if selected_roi is None:
+            raise DomainError("ROI_REQUIRED", "Select an ROI before starting measurement.")
         values = config.point_values()
         raw_points: list[MeasurementPoint] = []
 
@@ -56,7 +61,7 @@ class MeasurementRunner:
                     raise JobCanceled()
 
                 self._interruptible_wait(config.settle_ms / 1000.0, cancel_event)
-                point = self._measure_point(input_value, config, capture, estimator, roi, cancel_event)
+                point = self._measure_point(input_value, config, capture, estimator, selected_roi, cancel_event)
                 raw_points.append(point)
                 publish({
                     "current_point": index,
@@ -65,6 +70,20 @@ class MeasurementRunner:
                 })
         finally:
             self._controller.neutralize()
+
+        if noise is not None:
+            raw_points = [
+                replace_point_velocity(point, noise.floor_x)
+                for point in raw_points
+            ]
+
+        valid_count = sum(point.valid for point in raw_points)
+        required_count = max(5, (len(values) * 60 + 99) // 100)
+        if valid_count < required_count:
+            raise DomainError(
+                "MEASUREMENT_QUALITY_LOW",
+                f"Only {valid_count} of {len(values)} measurement points were valid; {required_count} are required.",
+            )
 
         # Compute normalized_speed relative to max observed velocity
         valid_velocities = [p.velocity_px_s for p in raw_points if p.valid and p.velocity_px_s is not None]
@@ -89,6 +108,7 @@ class MeasurementRunner:
 
         return SessionResult(
             points=tuple(final_points),
+            noise=noise,
             schema_version=1,
         )
 
@@ -183,3 +203,16 @@ class MeasurementRunner:
     def _check_cancel(self, cancel_event: threading.Event) -> None:
         if cancel_event.is_set():
             raise JobCanceled()
+
+
+def replace_point_velocity(point: MeasurementPoint, noise_floor: float) -> MeasurementPoint:
+    if not point.valid or point.velocity_px_s is None:
+        return point
+    return MeasurementPoint(
+        input=point.input,
+        velocity_px_s=round(max(0.0, point.velocity_px_s - noise_floor), 4),
+        normalized_speed=point.normalized_speed,
+        stability=point.stability,
+        valid=point.valid,
+        attempts=point.attempts,
+    )

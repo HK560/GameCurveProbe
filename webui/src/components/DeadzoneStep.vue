@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { useSessionStore } from '../stores/session'
+import { createProbeLease } from '../services/probeLease'
 import { 
   Target, 
   Play, 
@@ -27,14 +28,28 @@ const expiresCountdown = computed(() => sessionStore.probe?.expires_in ?? 0)
 const config = computed(() => sessionStore.config)
 const innerDeadzone = computed(() => config.value?.inner_deadzone ?? 0.0)
 const outerDeadzone = computed(() => config.value?.outer_deadzone ?? 1.0)
+const probeLease = createProbeLease(
+  () => sessionStore.updateDeadzoneProbe(currentOutput.value),
+  () => sessionStore.stopDeadzoneProbe(),
+)
 
 async function toggleProbe() {
   if (probeActive.value) {
+    probeLease.pause()
     await sessionStore.stopDeadzoneProbe()
   } else {
     await sessionStore.startDeadzoneProbe(currentOutput.value, currentStep.value)
+    probeLease.start()
   }
 }
+
+onBeforeUnmount(() => {
+  if (probeActive.value) {
+    void probeLease.dispose()
+  } else {
+    probeLease.pause()
+  }
+})
 
 async function adjustOutput(delta: number) {
   const next = Math.max(0.0, Math.min(1.0, Math.round((currentOutput.value + delta) * 1000) / 1000))
@@ -248,9 +263,9 @@ function proceedToMeasurement() {
             <p class="text-xs text-slate-400">
               采样 ROI 画面在手柄回中静止时的背景微晃与噪点，用于滤除环境噪底。
             </p>
-            <div v-if="sessionStore.lastResult?.noise" class="p-2.5 bg-slate-800/40 rounded-lg text-xs font-mono text-cyan-300 flex justify-between">
-              <span>X噪底: {{ sessionStore.lastResult.noise.floor_x }} px/s</span>
-              <span>Y噪底: {{ sessionStore.lastResult.noise.floor_y }} px/s</span>
+            <div v-if="sessionStore.noise" class="p-2.5 bg-slate-800/40 rounded-lg text-xs font-mono text-cyan-300 flex justify-between">
+              <span>X噪底: {{ sessionStore.noise.floor_x }} px/s</span>
+              <span>Y噪底: {{ sessionStore.noise.floor_y }} px/s</span>
             </div>
           </div>
         </div>

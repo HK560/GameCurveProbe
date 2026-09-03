@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { defineAsyncComponent, onMounted } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useSessionStore } from './stores/session'
 import { ws } from './services/ws'
 import CaptureStep from './components/CaptureStep.vue'
 import DeadzoneStep from './components/DeadzoneStep.vue'
 import MeasurementStep from './components/MeasurementStep.vue'
-import AnalysisStep from './components/AnalysisStep.vue'
+const AnalysisStep = defineAsyncComponent(() => import('./components/AnalysisStep.vue'))
 import { 
   Monitor, 
   Target, 

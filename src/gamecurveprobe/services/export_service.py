@@ -44,7 +44,11 @@ class CurveAnalysisDto(BaseModel):
 class ResultDocumentDto(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: int
-    measured_at: str = ""
+    session_id: str = ""
+    captured_at: str = ""
+    environment: dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
     points: list[MeasurementPointDto]
     noise: NoiseResultDto | None = None
     analysis: CurveAnalysisDto | None = None
@@ -56,7 +60,11 @@ class ExportService:
     def export_json(self, result: SessionResult) -> bytes:
         data = {
             "schema_version": result.schema_version,
-            "measured_at": result.measured_at,
+            "session_id": result.session_id,
+            "captured_at": result.measured_at,
+            "environment": dict(result.environment),
+            "config": dict(result.config),
+            "warnings": list(result.warnings),
             "points": [
                 {
                     "input": p.input,
@@ -146,7 +154,11 @@ class ExportService:
             noise=noise,
             analysis=analysis,
             schema_version=doc.schema_version,
-            measured_at=doc.measured_at,
+            measured_at=doc.captured_at,
+            session_id=doc.session_id,
+            environment=doc.environment,
+            config=doc.config,
+            warnings=tuple(doc.warnings),
         )
 
     def export_csv(self, result: SessionResult) -> str:

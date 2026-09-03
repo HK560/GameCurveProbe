@@ -99,6 +99,7 @@ class CaptureInfo:
     target_fps: int
     attached_at: str = ""
     title: str = ""
+    occlusion_safe: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,18 @@ class CaptureHealth:
     fps: float
     duplicate_ratio: float
     last_error: str | None = None
+    frame_id: int = 0
+    frame_age_ms: float | None = None
+    window_exists: bool = True
+    window_minimized: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class WindowState:
+    exists: bool
+    minimized: bool
+    client_width: int = 0
+    client_height: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +162,10 @@ class SessionResult:
     analysis: CurveAnalysis | None = None
     schema_version: int = 1
     measured_at: str = ""
+    session_id: str = ""
+    environment: Mapping[str, Any] = field(default_factory=dict)
+    config: Mapping[str, Any] = field(default_factory=dict)
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,3 +190,4 @@ class SessionSnapshot:
     last_job: JobSnapshot | None = None
     active_job: JobSnapshot | None = None
     last_result: SessionResult | None = None
+    noise: NoiseResult | None = None

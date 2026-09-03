@@ -1,4 +1,5 @@
-export type RangeMode = 'full' | 'outer_only' | 'deadzone_only'
+export const RANGE_MODES = ['active_range', 'full'] as const
+export type RangeMode = (typeof RANGE_MODES)[number]
 
 export type JobState =
   | 'queued'
@@ -33,12 +34,18 @@ export interface CaptureInfo {
   height: number
   target_fps: number
   title?: string
+  occlusion_safe: boolean
 }
 
 export interface CaptureHealth {
   is_healthy: boolean
   fps: number
   duplicate_ratio: number
+  last_error?: string | null
+  frame_id: number
+  frame_age_ms?: number | null
+  window_exists: boolean
+  window_minimized: boolean
 }
 
 export interface MeasurementPoint {
@@ -81,6 +88,10 @@ export interface SessionResult {
   analysis?: CurveAnalysis | null
   schema_version: number
   measured_at: string
+  session_id?: string
+  environment?: Record<string, any>
+  config?: Record<string, any>
+  warnings?: string[]
 }
 
 export interface JobSnapshot {
@@ -103,6 +114,7 @@ export interface SessionSnapshot {
   last_job?: JobSnapshot | null
   active_job?: JobSnapshot | null
   last_result?: SessionResult | null
+  noise?: NoiseResult | null
 }
 
 export interface WindowInfo {

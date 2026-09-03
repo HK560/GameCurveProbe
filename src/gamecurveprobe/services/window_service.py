@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
-from gamecurveprobe.models import WindowInfo
+from gamecurveprobe.models import WindowInfo, WindowState
 
 user32 = ctypes.windll.user32
 
@@ -58,6 +58,20 @@ class WindowService:
             if window.window_id == window_id:
                 return window
         raise ValueError(f"Window {window_id} was not found.")
+
+    def inspect_window(self, window_id: int) -> WindowState:
+        if not user32.IsWindow(window_id):
+            return WindowState(exists=False, minimized=False)
+        minimized = bool(user32.IsIconic(window_id))
+        rect = wintypes.RECT()
+        if not user32.GetClientRect(window_id, ctypes.byref(rect)):
+            return WindowState(exists=True, minimized=minimized)
+        return WindowState(
+            exists=True,
+            minimized=minimized,
+            client_width=max(0, rect.right - rect.left),
+            client_height=max(0, rect.bottom - rect.top),
+        )
 
     def get_client_rect(self, window_id: int) -> tuple[int, int, int, int]:
         if not user32.IsWindow(window_id):

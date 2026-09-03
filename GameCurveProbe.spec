@@ -11,10 +11,11 @@ from build_tools.pyinstaller_support import collect_package_files
 
 
 vgamepad_datas = collect_package_files("vgamepad", ["win/vigem/client/**/*.dll"])
+wgc_datas = collect_package_files("windows_capture", ["**/*.dll", "**/*.pyd"])
 
 # Include Vue frontend static build
 web_dist_path = project_root / "src" / "gamecurveprobe" / "web_dist"
-datas = vgamepad_datas + [
+datas = vgamepad_datas + wgc_datas + [
     (str(web_dist_path), "gamecurveprobe/web_dist"),
 ]
 
@@ -27,10 +28,11 @@ hiddenimports = [
     "uvicorn.protocols.http.auto",
     "uvicorn.protocols.websockets",
     "uvicorn.protocols.websockets.auto",
-    "uvicorn.lifespans",
-    "uvicorn.lifespans.on",
-    "uvicorn.lifespans.auto",
+    "uvicorn.lifespan",
+    "uvicorn.lifespan.on",
+    "uvicorn.lifespan.off",
     "windows_capture",
+    "dxcam",
     "fastapi",
     "pydantic",
 ]
