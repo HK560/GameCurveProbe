@@ -230,15 +230,41 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
               v-model="wakeInput"
               class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
             >
-              <option value="right_stick">RS（右摇杆按下，默认）</option>
-              <option value="x">X</option>
-              <option value="y">Y</option>
-              <option value="a">A</option>
-              <option value="b">B</option>
-              <option value="left_bumper">LB</option>
-              <option value="right_bumper">RB</option>
-              <option value="left_trigger">LT</option>
-              <option value="right_trigger">RT</option>
+              <optgroup label="基础按键">
+                <option value="right_stick">RS（右摇杆按下，默认）</option>
+                <option value="left_stick">LS（左摇杆按下）</option>
+                <option value="a">A 键</option>
+                <option value="b">B 键</option>
+                <option value="x">X 键</option>
+                <option value="y">Y 键</option>
+              </optgroup>
+              <optgroup label="肩键与扳机">
+                <option value="left_bumper">LB（左肩键）</option>
+                <option value="right_bumper">RB（右肩键）</option>
+                <option value="left_trigger">LT（左扳机 100%）</option>
+                <option value="right_trigger">RT（右扳机 100%）</option>
+              </optgroup>
+              <optgroup label="功能按键">
+                <option value="start">Start（菜单/开始键）</option>
+                <option value="back">Back（视图/选择键）</option>
+                <option value="guide">Guide（Xbox 西瓜键）</option>
+              </optgroup>
+              <optgroup label="十字键 (D-Pad)">
+                <option value="dpad_up">十字键 上 (D-Pad Up)</option>
+                <option value="dpad_down">十字键 下 (D-Pad Down)</option>
+                <option value="dpad_left">十字键 左 (D-Pad Left)</option>
+                <option value="dpad_right">十字键 右 (D-Pad Right)</option>
+              </optgroup>
+              <optgroup label="摇杆微推脉冲">
+                <option value="left_stick_up">左摇杆 向上轻推</option>
+                <option value="left_stick_down">左摇杆 向下轻推</option>
+                <option value="left_stick_left">左摇杆 向左轻推</option>
+                <option value="left_stick_right">左摇杆 向右轻推</option>
+                <option value="right_stick_up">右摇杆 向上轻推</option>
+                <option value="right_stick_down">右摇杆 向下轻推</option>
+                <option value="right_stick_left">右摇杆 向左轻推</option>
+                <option value="right_stick_right">右摇杆 向右轻推</option>
+              </optgroup>
             </select>
           </div>
         </div>
