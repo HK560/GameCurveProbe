@@ -21,6 +21,7 @@ class FakeEstimate:
     confidence: float
     dx: float | None = None
     dy: float | None = None
+    dt: float | None = None
 
 
 class FakeCaptureBackend:
@@ -279,6 +280,29 @@ def test_sample_filtered_uses_cumulative_displacement_slope_when_dx_is_available
     assert sample.valid_frames == 3
     assert sample.px_per_sec_x == 200.0
     assert sample.px_per_sec_y == 20.0
+
+
+def test_sample_uses_estimate_intervals_for_displacement_rate() -> None:
+    sampler = MotionSampler(time_source=iter([0.0, 0.01, 0.02, 0.03]).__next__, sleep=lambda _: None)
+    capture = FakeCaptureBackend([FakeFrame(object(), 0.01), FakeFrame(object(), 0.02)])
+    estimator = FakeEstimator([
+        FakeEstimate(100, 0, 12, 0.9, dx=1.0, dt=0.01),
+        FakeEstimate(100, 0, 12, 0.9, dx=1.0, dt=0.01),
+    ])
+    sample = sampler.sample_filtered(capture, estimator, RoiRect(0, 0, 20, 20), 25)
+    assert sample.px_per_sec_x == 100.0
+
+
+def test_sample_stability_counts_rejected_quality_frames() -> None:
+    sampler = MotionSampler(time_source=iter([0.0, 0.01, 0.02, 0.03]).__next__, sleep=lambda _: None)
+    capture = FakeCaptureBackend([FakeFrame(object(), 0.01), FakeFrame(object(), 0.02)])
+    estimator = FakeEstimator([
+        FakeEstimate(100, 0, 12, 0.9),
+        FakeEstimate(100, 0, 2, 0.9),
+    ])
+    sample = sampler.sample_filtered(capture, estimator, RoiRect(0, 0, 20, 20), 25, min_tracked_points=8)
+    assert sample.rejected_frames == 1
+    assert sample.stability_score == 0.5
 
 
 def test_sampler_stops_when_cancel_is_set() -> None:

@@ -16,6 +16,7 @@ class MotionEstimate:
     px_per_sec_y: float = 0.0
     tracked_points: int = 0
     confidence: float = 0.0
+    dt: float | None = None
 
 
 class MotionEstimator:
@@ -48,7 +49,14 @@ class MotionEstimator:
             self._prev_timestamp = timestamp
             return MotionEstimate(tracked_points=0, confidence=0.0)
 
-        next_points, status, _ = cv2.calcOpticalFlowPyrLK(self._prev_gray, gray, self._prev_points, None)
+        lk_params = dict(
+            winSize=(31, 31),
+            maxLevel=3,
+            criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03),
+        )
+        next_points, status, _ = cv2.calcOpticalFlowPyrLK(
+            self._prev_gray, gray, self._prev_points, None, **lk_params
+        )
         if next_points is None or status is None:
             self._prev_gray = gray
             self._prev_points = self._detect_features(gray)
@@ -58,6 +66,37 @@ class MotionEstimator:
         valid_mask = status.reshape(-1) == 1
         prev_valid = self._prev_points[valid_mask].reshape(-1, 2)
         next_valid = next_points[valid_mask].reshape(-1, 2)
+        if len(next_valid):
+            back_points, back_status, _ = cv2.calcOpticalFlowPyrLK(
+                gray, self._prev_gray, next_valid.reshape(-1, 1, 2), None, **lk_params
+            )
+            if back_points is not None and back_status is not None:
+                fb_error = np.linalg.norm(
+                    prev_valid - back_points.reshape(-1, 2), axis=1
+                )
+                # A one-pixel gate is too strict at 60 FPS/high turn rates;
+                # retain only clearly divergent tracks while allowing normal
+                # pyramid interpolation error.
+                valid_mask = (back_status.reshape(-1) == 1) & (fb_error <= 2.5)
+                if int(valid_mask.sum()) >= self._minimum_feature_count:
+                    prev_valid = prev_valid[valid_mask]
+                    next_valid = next_valid[valid_mask]
+        if len(next_valid) >= 4:
+            try:
+                _transform, inlier_mask = cv2.estimateAffinePartial2D(
+                    prev_valid,
+                    next_valid,
+                    method=cv2.RANSAC,
+                    ransacReprojThreshold=2.0,
+                    maxIters=200,
+                    confidence=0.99,
+                )
+                if inlier_mask is not None and int(inlier_mask.sum()) >= self._minimum_feature_count:
+                    inliers = inlier_mask.reshape(-1).astype(bool)
+                    prev_valid = prev_valid[inliers]
+                    next_valid = next_valid[inliers]
+            except cv2.error:
+                pass
         tracked_points = len(next_valid)
         if tracked_points == 0:
             self._prev_gray = gray
@@ -68,7 +107,7 @@ class MotionEstimator:
         deltas = next_valid - prev_valid
         median_dx = float(np.median(deltas[:, 0]))
         median_dy = float(np.median(deltas[:, 1]))
-        dt = max(1e-6, timestamp - (self._prev_timestamp or timestamp))
+        dt = max(1e-6, timestamp - (self._prev_timestamp if self._prev_timestamp is not None else timestamp))
         estimate = MotionEstimate(
             dx=median_dx,
             dy=median_dy,
@@ -76,6 +115,7 @@ class MotionEstimator:
             px_per_sec_y=median_dy / dt,
             tracked_points=tracked_points,
             confidence=float(tracked_points / max(1, len(self._prev_points))),
+            dt=dt,
         )
 
         self._prev_gray = gray

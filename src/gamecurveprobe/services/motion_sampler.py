@@ -19,6 +19,9 @@ class MotionSample:
     average_confidence: float = 0.0
     sample_duration_ms: int = 0
     stability_score: float = 0.0
+    rejected_frames: int = 0
+    velocity_mad: float = 0.0
+    coverage: float = 0.0
     canceled: bool = False
 
 
@@ -84,7 +87,7 @@ class MotionSampler:
         if cancel_event is not None and cancel_event.is_set():
             return MotionSample(canceled=True)
 
-        estimates, duplicate_frames, was_canceled = self._collect_estimates(
+        estimates, duplicate_frames, rejected_frames, was_canceled = self._collect_estimates(
             capture_backend,
             estimator,
             roi,
@@ -106,18 +109,24 @@ class MotionSampler:
         times = [estimate.timestamp for estimate in estimates]
         dxs = [estimate.dx for estimate in estimates if estimate.dx is not None]
         dys = [estimate.dy for estimate in estimates if estimate.dy is not None]
+        dts = [estimate.dt for estimate in estimates]
         duration_ms = int(round(max(0.0, times[-1] - times[0]) * 1000)) if len(times) >= 2 else 0
-        total_frames = len(estimates) + duplicate_frames
+        total_frames = len(estimates) + duplicate_frames + rejected_frames
         stability_score = 0.0 if total_frames <= 0 else round(len(estimates) / total_frames, 4)
+        median_speed = float(median(xs))
+        velocity_mad = float(median([abs(value - median_speed) for value in xs])) if xs else 0.0
 
         return MotionSample(
-            px_per_sec_x=self._calculate_axis_speed(xs, dxs, times),
-            px_per_sec_y=self._calculate_axis_speed(ys, dys, times),
+            px_per_sec_x=self._calculate_axis_speed(xs, dxs, times, dts),
+            px_per_sec_y=self._calculate_axis_speed(ys, dys, times, dts),
             valid_frames=len(estimates),
             duplicate_frames=duplicate_frames,
             average_confidence=sum(confidences) / len(confidences),
             sample_duration_ms=duration_ms,
             stability_score=stability_score,
+            rejected_frames=rejected_frames,
+            velocity_mad=round(1.4826 * velocity_mad, 4),
+            coverage=stability_score,
         )
 
     def sample_noise_floor(
@@ -134,7 +143,7 @@ class MotionSampler:
         if cancel_event is not None and cancel_event.is_set():
             return MotionSample(canceled=True)
 
-        estimates, _duplicate_frames, was_canceled = self._collect_estimates(
+        estimates, _duplicate_frames, _rejected_frames, was_canceled = self._collect_estimates(
             capture_backend,
             estimator,
             roi,
@@ -168,14 +177,15 @@ class MotionSampler:
         min_tracked_points: int,
         min_confidence: float,
         cancel_event: threading.Event | None = None,
-    ) -> tuple[list[_AcceptedEstimate], int, bool]:
+    ) -> tuple[list[_AcceptedEstimate], int, int, bool]:
         deadline = self._time_source() + (sample_ms / 1000.0)
         estimates: list[_AcceptedEstimate] = []
         duplicate_frames = 0
+        rejected_frames = 0
 
         while self._time_source() < deadline:
             if cancel_event is not None and cancel_event.is_set():
-                return estimates, duplicate_frames, True
+                return estimates, duplicate_frames, rejected_frames, True
 
             if hasattr(capture_backend, "read"):
                 captured = capture_backend.read(100)
@@ -187,7 +197,7 @@ class MotionSampler:
             if captured is None:
                 if cancel_event is not None:
                     if cancel_event.wait(0.005):
-                        return estimates, duplicate_frames, True
+                        return estimates, duplicate_frames, rejected_frames, True
                 else:
                     self._sleep(0.005)
                 continue
@@ -209,10 +219,13 @@ class MotionSampler:
 
             estimate = estimator.update(frame_obj, roi, ts)
             if estimate is None or estimate.tracked_points <= 0:
+                rejected_frames += 1
                 continue
             if estimate.tracked_points < min_tracked_points:
+                rejected_frames += 1
                 continue
             if estimate.confidence < min_confidence:
+                rejected_frames += 1
                 continue
 
             estimates.append(
@@ -223,15 +236,21 @@ class MotionSampler:
                     confidence=float(estimate.confidence),
                     dx=self._optional_float(getattr(estimate, "dx", None)),
                     dy=self._optional_float(getattr(estimate, "dy", None)),
+                    dt=self._optional_float(getattr(estimate, "dt", None)),
                 )
             )
 
-        return estimates, duplicate_frames, False
+        return estimates, duplicate_frames, rejected_frames, False
 
     def _calculate_axis_speed(
-        self, velocities: list[float], displacements: list[float | None], times: list[float]
+        self, velocities: list[float], displacements: list[float | None], times: list[float], dts: list[float | None] | None = None
     ) -> float:
         usable_displacements = [value for value in displacements if value is not None]
+        usable_dts = [value for value in (dts or []) if value is not None and value > 0]
+        if len(usable_displacements) == len(times) and len(usable_dts) == len(times):
+            duration = sum(usable_dts)
+            if duration > 0:
+                return round(sum(usable_displacements) / duration, 4)
         if len(usable_displacements) == len(times) and len(times) >= 2:
             duration = times[-1] - times[0]
             if duration > 0:
@@ -258,3 +277,4 @@ class _AcceptedEstimate:
     confidence: float
     dx: float | None
     dy: float | None
+    dt: float | None = None

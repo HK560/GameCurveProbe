@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from statistics import median
 from typing import Any
 
-from gamecurveprobe.constants import MIN_TRACKED_POINTS, MIN_TRACKING_CONFIDENCE
+from gamecurveprobe.constants import MIN_SAMPLE_VALID_FRAMES, MIN_TRACKED_POINTS, MIN_TRACKING_CONFIDENCE
 from gamecurveprobe.errors import DomainError, JobCanceled
 from gamecurveprobe.models import MeasurementPoint, NoiseResult, ProbeConfig, RoiRect, SessionResult
 from gamecurveprobe.services.controller_service import ControllerService
@@ -118,6 +118,17 @@ class MeasurementRunner:
                     index=index,
                     total_points=len(values),
                 )
+                if config.bidirectional and input_value > 0:
+                    self._controller.neutralize()
+                    self._interruptible_wait(0.10, cancel_event)
+                    if not self._controller.set_right_stick(-input_value, 0.0, cancel_event):
+                        raise JobCanceled()
+                    self._interruptible_wait(config.settle_ms / 1000.0, cancel_event)
+                    reverse = self._measure_point(
+                        input_value, config, capture, estimator, selected_roi, cancel_event,
+                        publish=publish, index=index, total_points=len(values),
+                    )
+                    point = combine_directional_points(point, reverse)
                 raw_points.append(point)
                 publish({
                     "phase": "point_done",
@@ -131,6 +142,8 @@ class MeasurementRunner:
                         "stability": point.stability,
                         "valid": point.valid,
                         "attempts": point.attempts,
+                        "coverage": point.coverage,
+                        "velocity_mad": point.velocity_mad,
                     },
                     "message": (
                         f"采样点 [{index}/{len(values)}] 测定完成: "
@@ -166,7 +179,13 @@ class MeasurementRunner:
 
         # Compute normalized_speed relative to max observed velocity
         valid_velocities = [p.velocity_px_s for p in raw_points if p.valid and p.velocity_px_s is not None]
-        max_velocity = max(valid_velocities, default=0.0)
+        endpoint_velocities = [
+            p.velocity_px_s for p in raw_points
+            if p.valid and p.velocity_px_s is not None and p.input >= 0.85
+        ]
+        # A single early peak must not make the final endpoint look slower.
+        # Use the robust median of the outer region as the normalization anchor.
+        max_velocity = float(median(endpoint_velocities)) if len(endpoint_velocities) >= 2 else max(valid_velocities, default=0.0)
 
         final_points: list[MeasurementPoint] = []
         for p in raw_points:
@@ -182,6 +201,9 @@ class MeasurementRunner:
                     stability=p.stability,
                     valid=p.valid,
                     attempts=p.attempts,
+                    coverage=p.coverage,
+                    velocity_mad=p.velocity_mad,
+                    repeat_values=p.repeat_values,
                 )
             )
 
@@ -207,7 +229,10 @@ class MeasurementRunner:
         stabilities: list[float] = []
         total_attempts = 0
 
-        for _ in range(config.repeats):
+        # A single transient game/capture hitch must not become a curve kink.
+        # Allow at most two extra repeats when the requested repeats disagree.
+        max_repeats = config.repeats + 2 if config.repeats >= 2 else config.repeats
+        for _ in range(max_repeats):
             self._check_cancel(cancel_event)
             estimator.reset()
             total_attempts += 1
@@ -231,7 +256,7 @@ class MeasurementRunner:
             if sample.canceled:
                 raise JobCanceled()
 
-            if sample.valid_frames > 0 and sample.stability_score < 0.75:
+            if sample.valid_frames > 0 and (sample.valid_frames < MIN_SAMPLE_VALID_FRAMES or sample.stability_score < 0.75):
                 # Retry once
                 total_attempts += 1
                 self._check_cancel(cancel_event)
@@ -258,12 +283,19 @@ class MeasurementRunner:
                 )
                 if retry_sample.canceled:
                     raise JobCanceled()
-                if retry_sample.valid_frames > 0:
+                if retry_sample.valid_frames >= MIN_SAMPLE_VALID_FRAMES and retry_sample.stability_score >= sample.stability_score:
                     sample = retry_sample
 
-            if sample.valid_frames > 0:
+            if sample.valid_frames >= MIN_SAMPLE_VALID_FRAMES and sample.stability_score >= 0.60:
                 velocities.append(abs(sample.px_per_sec_x))
                 stabilities.append(sample.stability_score)
+            if len(velocities) >= config.repeats:
+                if config.repeats < 3:
+                    break
+                center = median(velocities)
+                mad = median([abs(value - center) for value in velocities])
+                if len(velocities) >= 3 and center > 1e-6 and mad / center <= 0.08:
+                    break
 
         if not velocities:
             return MeasurementPoint(
@@ -273,10 +305,12 @@ class MeasurementRunner:
                 stability=0.0,
                 valid=False,
                 attempts=total_attempts,
+                coverage=0.0,
             )
 
         med_velocity = round(float(median(velocities)), 4)
         avg_stability = round(sum(stabilities) / len(stabilities), 4)
+        repeat_median = float(median(velocities))
         return MeasurementPoint(
             input=input_value,
             velocity_px_s=med_velocity,
@@ -284,6 +318,9 @@ class MeasurementRunner:
             stability=avg_stability,
             valid=True,
             attempts=total_attempts,
+            coverage=round(min(stabilities), 4),
+            velocity_mad=round(1.4826 * median([abs(v - repeat_median) for v in velocities]), 4) if len(velocities) > 1 else 0.0,
+            repeat_values=tuple(round(v, 4) for v in velocities),
         )
 
     def _interruptible_wait(self, duration: float, cancel_event: threading.Event) -> None:
@@ -318,4 +355,27 @@ def replace_point_velocity(point: MeasurementPoint, noise_floor: float) -> Measu
         stability=point.stability,
         valid=point.valid,
         attempts=point.attempts,
+        coverage=point.coverage,
+        velocity_mad=point.velocity_mad,
+        repeat_values=point.repeat_values,
+    )
+
+
+def combine_directional_points(forward: MeasurementPoint, reverse: MeasurementPoint) -> MeasurementPoint:
+    values = [v for v in (*forward.repeat_values, *reverse.repeat_values)]
+    if not values:
+        return MeasurementPoint(input=forward.input, velocity_px_s=None, normalized_speed=None,
+                                stability=0.0, valid=False, attempts=forward.attempts + reverse.attempts)
+    center = float(median(values))
+    mad = median([abs(v - center) for v in values]) if len(values) > 1 else 0.0
+    return MeasurementPoint(
+        input=forward.input,
+        velocity_px_s=round(center, 4),
+        normalized_speed=None,
+        stability=round(min(forward.stability, reverse.stability), 4),
+        valid=forward.valid and reverse.valid,
+        attempts=forward.attempts + reverse.attempts,
+        coverage=round(min(forward.coverage, reverse.coverage), 4),
+        velocity_mad=round(1.4826 * mad, 4),
+        repeat_values=tuple(round(v, 4) for v in values),
     )

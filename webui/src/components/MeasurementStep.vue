@@ -186,6 +186,7 @@ async function applyConfig() {
     point_count: pointCount.value,
     settle_ms: settleMs.value,
     sample_ms: sampleMs.value,
+    bidirectional: true,
   })
 }
 
@@ -584,6 +585,7 @@ function proceedToAnalysis() {
               <th class="p-2.5">角速度 (px/s)</th>
               <th class="p-2.5">归一化比例</th>
               <th class="p-2.5">稳定性评分</th>
+              <th class="p-2.5">有效覆盖</th>
               <th class="p-2.5">状态</th>
             </tr>
           </thead>
@@ -602,6 +604,7 @@ function proceedToAnalysis() {
                 {{ pt.normalized_speed !== null ? `${(pt.normalized_speed * 100).toFixed(1)}%` : (isRunning ? '计算中...' : '-') }}
               </td>
               <td class="p-2.5">{{ Math.round(pt.stability * 100) }}%</td>
+              <td class="p-2.5">{{ Math.round((pt.coverage ?? pt.stability) * 100) }}%</td>
               <td class="p-2.5">
                 <span
                   class="px-1.5 py-0.5 rounded text-[10px]"
