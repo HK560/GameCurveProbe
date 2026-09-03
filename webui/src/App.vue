@@ -5,6 +5,8 @@ import { useSessionStore } from './stores/session'
 import { ws } from './services/ws'
 import CaptureStep from './components/CaptureStep.vue'
 import DeadzoneStep from './components/DeadzoneStep.vue'
+import MeasurementStep from './components/MeasurementStep.vue'
+import AnalysisStep from './components/AnalysisStep.vue'
 import { 
   Monitor, 
   Target, 
@@ -121,12 +123,10 @@ onMounted(async () => {
           <DeadzoneStep />
         </div>
         <div v-else-if="sessionStore.activeStep === 3">
-          <h2 class="text-xl font-semibold text-white mb-2">步骤 3: 响应曲线全自动测定</h2>
-          <p class="text-sm text-slate-400 mb-6">执行稳态角速度测定任务，系统将按预设步长遍历各采样点并实时统计角速度。</p>
+          <MeasurementStep />
         </div>
         <div v-else-if="sessionStore.activeStep === 4">
-          <h2 class="text-xl font-semibold text-white mb-2">步骤 4: 曲线拟合分析与报告导出</h2>
-          <p class="text-sm text-slate-400 mb-6">可视化查看响应曲线、曲率分段及分类模型，支持导出为标准化 JSON 及 CSV 格式。</p>
+          <AnalysisStep />
         </div>
       </div>
     </main>
