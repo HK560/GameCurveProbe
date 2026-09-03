@@ -45,26 +45,33 @@ class CaptureService:
         candidates = ("wgc", "dxcam") if requested == "auto" else (requested,)
         failures: list[DomainError] = []
 
+        print(f"[CaptureService] Attaching to window_id={window_id}, requested={requested}, fps={fps}")
         with self._lock:
             self.close()
             for name in candidates:
                 if name not in self._backends:
+                    print(f"[CaptureService] Backend '{name}' not available in registered backends.")
                     continue
                 backend = self._backends[name]
+                print(f"[CaptureService] Trying capture backend '{name}'...")
                 try:
                     info = self._attach_and_validate(backend, window_id, fps)
                     self._active_backend = backend
                     self._active_info = info
+                    print(f"[CaptureService] Successfully attached with '{name}': {info.width}x{info.height} @ {info.target_fps}fps")
                     self._start_preview_worker()
                     return info
                 except DomainError as exc:
+                    print(f"[CaptureService] Backend '{name}' DomainError: {exc}")
                     failures.append(exc)
                     backend.close()
                 except Exception as exc:
+                    print(f"[CaptureService] Backend '{name}' unexpected Exception: {exc}")
                     failures.append(DomainError("CAPTURE_FAILED", f"{name} failed: {exc}"))
                     backend.close()
 
             if failures:
+                print(f"[CaptureService] All candidate backends failed: {failures}")
                 raise failures[-1]
             raise DomainError("BACKEND_NOT_FOUND", f"No suitable capture backend found for {requested}.")
 
@@ -80,6 +87,7 @@ class CaptureService:
     def _start_preview_worker(self) -> None:
         self._stop_preview.clear()
         if self._preview_callback is not None:
+            print("[CaptureService] Starting background preview streaming worker...")
             self._preview_thread = threading.Thread(
                 target=self._preview_loop,
                 daemon=True,
@@ -89,6 +97,7 @@ class CaptureService:
 
     def _preview_loop(self) -> None:
         seq = 0
+        logged_first_frame = False
         while not self._stop_preview.is_set():
             with self._lock:
                 backend = self._active_backend
@@ -113,8 +122,11 @@ class CaptureService:
                         )
                         seq += 1
                         self._preview_callback(preview)
-                except Exception:
-                    pass
+                        if not logged_first_frame:
+                            print(f"[CaptureService] First preview frame published to EventHub ({frame.image.shape[1]}x{frame.image.shape[0]}, size={len(preview.jpeg)} bytes)")
+                            logged_first_frame = True
+                except Exception as exc:
+                    print(f"[CaptureService] Error encoding preview frame: {exc}")
 
             time.sleep(0.033)
 

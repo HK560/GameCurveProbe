@@ -55,6 +55,8 @@ class ApiClient {
       headers.set('Content-Type', 'application/json')
     }
 
+    const method = options.method || 'GET'
+    console.debug(`[API Request] ${method} ${path}`, options.body ?? '')
     const response = await fetch(path, {
       ...options,
       headers,
@@ -73,10 +75,13 @@ class ApiClient {
       } catch {
         // Fallback to status text
       }
+      console.error(`[API Error] ${method} ${path} -> ${response.status}`, errData)
       throw errData
     }
 
-    return response.json()
+    const data = await response.json()
+    console.debug(`[API Response] ${method} ${path} ->`, data)
+    return data
   }
 
   public async getHealth(): Promise<{ status: string; controller_ready: boolean }> {
