@@ -53,6 +53,7 @@ class ConfigUpdateRequest(StrictDto):
     sound_enabled: bool | None = None
     wake_input: str | None = None
     auto_wake: bool | None = None
+    start_countdown_s: int | None = Field(default=None, ge=0, le=30)
 
 
 class DeadzoneRequest(StrictDto):

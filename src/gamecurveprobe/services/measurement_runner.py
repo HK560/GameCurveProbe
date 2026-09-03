@@ -62,21 +62,34 @@ class MeasurementRunner:
             "message": f"稳态测定启动: 共 {len(values)} 个采样点 (Settle: {config.settle_ms}ms, Sample: {config.sample_ms}ms)",
         })
 
-        if config.auto_wake and self._controller.is_enabled():
-            publish({
-                "phase": "stage_start",
-                "total_points": len(values),
-                "current_point": 0,
-                "input_value": 0.0,
-                "message": f"自动触发唤醒游戏画面 ({config.wake_input})...",
-            })
-            try:
-                self._controller.wake(config.wake_input, duration_seconds=0.5)
-                self._interruptible_wait(0.6, cancel_event)
-            except Exception:
-                pass
-
         try:
+            if config.start_countdown_s > 0:
+                for count in range(config.start_countdown_s, 0, -1):
+                    self._check_cancel(cancel_event)
+                    publish({
+                        "phase": "countdown",
+                        "remaining_seconds": count,
+                        "total_seconds": config.start_countdown_s,
+                        "current_point": 0,
+                        "total_points": len(values),
+                        "message": f"请切回游戏画面！测定将在 {count} 秒后正式开始...",
+                    })
+                    self._interruptible_wait(1.0, cancel_event)
+
+            if config.auto_wake and self._controller.is_enabled():
+                publish({
+                    "phase": "stage_start",
+                    "total_points": len(values),
+                    "current_point": 0,
+                    "input_value": 0.0,
+                    "message": f"自动触发唤醒游戏画面 ({config.wake_input})...",
+                })
+                try:
+                    self._controller.wake(config.wake_input, duration_seconds=0.5)
+                    self._interruptible_wait(0.6, cancel_event)
+                except Exception:
+                    pass
+
             for index, input_value in enumerate(values, start=1):
                 self._check_cancel(cancel_event)
                 self._controller.neutralize()
