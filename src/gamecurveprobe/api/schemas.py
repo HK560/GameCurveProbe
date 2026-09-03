@@ -54,6 +54,8 @@ class ConfigUpdateRequest(StrictDto):
     wake_input: str | None = None
     auto_wake: bool | None = None
     start_countdown_s: int | None = Field(default=None, ge=0, le=30)
+    horizontal_fov_deg: float | None = Field(default=None, ge=30.0, le=180.0)
+    bidirectional: bool | None = None
 
 
 class DeadzoneRequest(StrictDto):

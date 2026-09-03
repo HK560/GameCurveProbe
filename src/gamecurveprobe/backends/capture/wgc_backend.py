@@ -81,7 +81,11 @@ class WgcCaptureBackend(CaptureBackend):
                         pass
                     return
                 raw = getattr(native_frame, "frame_buffer", native_frame)
-                self._handle_raw_frame(raw, generation)
+                # windows-capture exposes the compositor QPC timestamp as a
+                # 100ns TimeSpan; preserve it for motion-rate calculations.
+                timespan = getattr(native_frame, "timespan", None)
+                timestamp_ns = int(timespan) * 100 if timespan is not None else None
+                self._handle_raw_frame(raw, generation, timestamp_ns)
 
             @cap.event
             def on_closed() -> None:
@@ -119,13 +123,18 @@ class WgcCaptureBackend(CaptureBackend):
             )
             return self._latest_frame
 
-    def _handle_raw_frame(self, raw_buffer: np.ndarray, generation: int | None = None) -> None:
+    def _handle_raw_frame(
+        self,
+        raw_buffer: np.ndarray,
+        generation: int | None = None,
+        timestamp_ns: int | None = None,
+    ) -> None:
         try:
             bgr = to_bgr(raw_buffer)
         except Exception:
             return
 
-        now_ns = time.perf_counter_ns()
+        now_ns = timestamp_ns if timestamp_ns is not None else time.perf_counter_ns()
         with self._condition:
             if generation is not None and generation != self._generation:
                 return

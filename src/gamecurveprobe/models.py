@@ -72,6 +72,8 @@ class ProbeConfig:
     wake_input: str = "right_stick"
     auto_wake: bool = True
     start_countdown_s: int = 5
+    horizontal_fov_deg: float | None = None
+    bidirectional: bool = False
 
     @classmethod
     def from_preset(cls, name: str) -> "ProbeConfig":
@@ -89,6 +91,8 @@ class ProbeConfig:
             raise DomainError("INVALID_CONFIG", "outer_deadzone must be greater than inner_deadzone within [0, 1].")
         if not self.hotkey_start or not self.hotkey_stop:
             raise DomainError("INVALID_CONFIG", "Hotkey values cannot be empty.")
+        if self.horizontal_fov_deg is not None and not 30.0 <= self.horizontal_fov_deg <= 180.0:
+            raise DomainError("INVALID_CONFIG", "horizontal_fov_deg must be within [30, 180].")
 
     def point_values(self) -> list[float]:
         start, end = (
@@ -143,6 +147,9 @@ class MeasurementPoint:
     stability: float
     valid: bool
     attempts: int
+    coverage: float = 0.0
+    velocity_mad: float | None = None
+    repeat_values: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

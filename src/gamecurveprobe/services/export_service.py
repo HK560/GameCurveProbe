@@ -24,6 +24,9 @@ class MeasurementPointDto(BaseModel):
     stability: float = Field(ge=0.0, le=1.0)
     valid: bool
     attempts: int = Field(ge=1)
+    coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    velocity_mad: float | None = Field(default=None, ge=0.0)
+    repeat_values: list[float] = Field(default_factory=list)
 
 
 class NoiseResultDto(BaseModel):
@@ -73,6 +76,9 @@ class ExportService:
                     "stability": p.stability,
                     "valid": p.valid,
                     "attempts": p.attempts,
+                    "coverage": p.coverage,
+                    "velocity_mad": p.velocity_mad,
+                    "repeat_values": list(p.repeat_values),
                 }
                 for p in result.points
             ],
@@ -124,6 +130,9 @@ class ExportService:
                 stability=p.stability,
                 valid=p.valid,
                 attempts=p.attempts,
+                coverage=p.coverage,
+                velocity_mad=p.velocity_mad,
+                repeat_values=tuple(p.repeat_values),
             )
             for p in doc.points
         )

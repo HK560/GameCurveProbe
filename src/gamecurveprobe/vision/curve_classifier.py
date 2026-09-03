@@ -29,6 +29,9 @@ def classify_curve(points: Sequence[MeasurementPoint]) -> CurveAnalysis:
     if y_range <= 1e-6:
         return CurveAnalysis(curve_type="undetermined", confidence=0.0, metrics={})
     ys_norm = (ys - y_min) / y_range
+    drops = np.diff(ys)
+    violation_count = int(np.sum(drops < -max(1e-6, y_range * 0.03)))
+    largest_drop = float(max(0.0, -float(np.min(drops)))) if len(drops) else 0.0
 
     try:
         linear_fit = _fit_linear(xs, ys_norm)
@@ -41,10 +44,18 @@ def classify_curve(points: Sequence[MeasurementPoint]) -> CurveAnalysis:
     best, second = ranked[0], ranked[1]
 
     if best.nrmse > 0.12 or (second.nrmse - best.nrmse) < 0.02:
-        return CurveAnalysis(curve_type="undetermined", confidence=0.0, metrics={"best_nrmse": round(best.nrmse, 4)})
+        return CurveAnalysis(curve_type="undetermined", confidence=0.0, metrics={
+            "best_nrmse": round(best.nrmse, 4),
+            "monotonic_violations": float(violation_count),
+            "largest_drop_px_s": round(largest_drop, 4),
+        })
 
     confidence = round(max(0.0, min(1.0, 1.0 - best.nrmse)), 4)
-    return CurveAnalysis(curve_type=best.kind, confidence=confidence, metrics=best.metrics)
+    return CurveAnalysis(
+        curve_type=best.kind,
+        confidence=confidence,
+        metrics={**best.metrics, "monotonic_violations": float(violation_count), "largest_drop_px_s": round(largest_drop, 4)},
+    )
 
 
 def _compute_nrmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:

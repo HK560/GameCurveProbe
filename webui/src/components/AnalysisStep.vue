@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import CurveChart from './CurveChart.vue'
@@ -10,7 +10,8 @@ import {
   Sparkles, 
   RotateCcw, 
   Activity,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sliders
 } from 'lucide-vue-next'
 
 const sessionStore = useSessionStore()
@@ -20,8 +21,144 @@ const importMessage = ref<string | null>(null)
 const result = computed(() => sessionStore.lastResult)
 const importedResult = computed(() => sessionStore.importedResult)
 const points = computed(() => result.value?.points || [])
-const analysis = computed(() => result.value?.analysis)
 const noise = computed(() => result.value?.noise)
+
+// Analysis Deadzone Filter Range
+const analysisInnerDeadzone = ref<number>(0.0)
+const analysisOuterDeadzone = ref<number>(1.0)
+
+watch(
+  () => result.value,
+  (res) => {
+    if (res?.config) {
+      analysisInnerDeadzone.value = res.config.inner_deadzone ?? 0.0
+      analysisOuterDeadzone.value = res.config.outer_deadzone ?? 1.0
+    } else {
+      analysisInnerDeadzone.value = 0.0
+      analysisOuterDeadzone.value = 1.0
+    }
+  },
+  { immediate: true }
+)
+
+const resetDeadzoneRange = (inner: number, outer: number) => {
+  analysisInnerDeadzone.value = inner
+  analysisOuterDeadzone.value = outer
+}
+
+// Recalculate normalized values & active range tags for points
+const recalculatedPoints = computed(() => {
+  const raw = points.value
+  if (!raw || raw.length === 0) return []
+
+  const inner = analysisInnerDeadzone.value
+  const outer = analysisOuterDeadzone.value
+
+  const validInRange = raw.filter(
+    (p) => p.valid && p.velocity_px_s !== null && p.input >= inner - 1e-5 && p.input <= outer + 1e-5
+  )
+
+  if (validInRange.length === 0) {
+    return raw.map((p) => ({
+      ...p,
+      in_analysis_range: p.input >= inner - 1e-5 && p.input <= outer + 1e-5,
+      normalized_speed: p.normalized_speed,
+    }))
+  }
+
+  const vMin = Math.min(...validInRange.map((p) => p.velocity_px_s!))
+  const vMax = Math.max(...validInRange.map((p) => p.velocity_px_s!))
+  const vRange = vMax - vMin
+
+  return raw.map((p) => {
+    const inRange = p.input >= inner - 1e-5 && p.input <= outer + 1e-5
+    let norm: number | null = null
+
+    if (p.valid && p.velocity_px_s !== null) {
+      if (p.input < inner - 1e-5) {
+        norm = 0.0
+      } else if (p.input > outer + 1e-5) {
+        norm = 1.0
+      } else {
+        norm = vRange > 1e-6 ? (p.velocity_px_s - vMin) / vRange : 1.0
+        norm = Math.max(0.0, Math.min(1.0, norm))
+      }
+    } else {
+      norm = p.normalized_speed
+    }
+
+    return {
+      ...p,
+      in_analysis_range: inRange,
+      normalized_speed: norm !== null ? Math.round(norm * 10000) / 10000 : null,
+    }
+  })
+})
+
+// Recalculate curve fitting analysis based on points in range
+const recalculatedAnalysis = computed(() => {
+  const pts = recalculatedPoints.value.filter(
+    (p) => p.in_analysis_range && p.valid && p.velocity_px_s !== null
+  )
+  if (pts.length < 3) {
+    return {
+      curve_type: 'undetermined',
+      confidence: 0.0,
+      metrics: { note: '选取范围节点不足 (<3)' },
+    }
+  }
+
+  const xs = pts.map((p) => p.input)
+  const ys = pts.map((p) => p.velocity_px_s!)
+  const minV = Math.min(...ys)
+  const maxV = Math.max(...ys)
+  const vRange = maxV - minV
+
+  let drops = 0
+  let maxDrop = 0
+  for (let i = 1; i < ys.length; i++) {
+    const diff = ys[i] - ys[i - 1]
+    if (diff < -Math.max(1e-6, vRange * 0.03)) drops++
+    if (diff < 0) maxDrop = Math.max(maxDrop, -diff)
+  }
+
+  // Linear NRMSE
+  const n = xs.length
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0
+  for (let i = 0; i < n; i++) {
+    sumX += xs[i]
+    sumY += ys[i]
+    sumXY += xs[i] * ys[i]
+    sumXX += xs[i] * xs[i]
+  }
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX || 1)
+  const intercept = (sumY - slope * sumX) / n
+
+  let sse = 0
+  for (let i = 0; i < n; i++) {
+    const pred = slope * xs[i] + intercept
+    sse += (ys[i] - pred) ** 2
+  }
+  const rmse = Math.sqrt(sse / n)
+  const nrmse = vRange > 1e-6 ? rmse / vRange : rmse
+
+  let type = 'undetermined'
+  if (nrmse < 0.08 && drops === 0) type = 'linear'
+  else if (drops === 0 && ys[0] < minV + vRange * 0.2) type = 'exponential'
+  else if (drops === 0) type = 's_curve'
+
+  const confidence = Math.max(0, Math.min(1, 1 - nrmse))
+
+  return {
+    curve_type: type,
+    confidence: Math.round(confidence * 10000) / 10000,
+    metrics: {
+      best_nrmse: Math.round(nrmse * 10000) / 10000,
+      monotonic_violations: drops,
+      largest_drop_px_s: Math.round(maxDrop * 100) / 100,
+    },
+  }
+})
 
 const curveTypeLabels: Record<string, { label: string; desc: string }> = {
   linear: {
@@ -43,23 +180,59 @@ const curveTypeLabels: Record<string, { label: string; desc: string }> = {
 }
 
 const currentTypeInfo = computed(() => {
-  const t = analysis.value?.curve_type || 'undetermined'
+  const t = recalculatedAnalysis.value?.curve_type || 'undetermined'
   return curveTypeLabels[t] || curveTypeLabels.undetermined
 })
 
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 async function downloadExport(format: 'json' | 'csv') {
-  try {
-    const blob = await api.exportResult(format)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `gamecurveprobe_result_${new Date().toISOString().slice(0, 10)}.${format}`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  } catch (err: any) {
-    console.error('Export failed:', err)
+  if (recalculatedPoints.value.length === 0) return
+
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const rangeStr = `${(analysisInnerDeadzone.value * 100).toFixed(0)}-${(analysisOuterDeadzone.value * 100).toFixed(0)}`
+  const filename = `gamecurveprobe_analysis_${rangeStr}_${dateStr}.${format}`
+
+  if (format === 'csv') {
+    const headers = ['#', 'Input_Stick_X', 'Velocity_px_s', 'Recalculated_Normalized', 'Stability', 'Coverage', 'Attempts', 'In_Active_Range', 'Status']
+    const rows = recalculatedPoints.value.map((p, idx) => [
+      idx + 1,
+      p.input.toFixed(4),
+      p.velocity_px_s !== null ? p.velocity_px_s.toFixed(2) : '',
+      p.normalized_speed !== null ? p.normalized_speed.toFixed(4) : '',
+      p.stability.toFixed(4),
+      ((p as any).coverage ?? p.stability).toFixed(4),
+      p.attempts,
+      p.in_analysis_range ? 'YES' : 'NO',
+      p.valid ? (p.in_analysis_range ? 'Valid' : 'Outside_Deadzone') : 'Invalid',
+    ])
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    saveBlob(blob, filename)
+  } else {
+    const exportData = {
+      id: (result.value as any)?.id || result.value?.session_id || 'export',
+      measured_at: result.value?.measured_at || new Date().toISOString(),
+      analysis_range: {
+        inner_deadzone: analysisInnerDeadzone.value,
+        outer_deadzone: analysisOuterDeadzone.value,
+      },
+      analysis: recalculatedAnalysis.value,
+      points: recalculatedPoints.value,
+      noise: noise.value,
+    }
+    const jsonContent = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([jsonContent], { type: 'application/json' })
+    saveBlob(blob, filename)
   }
 }
 
@@ -97,15 +270,15 @@ function restartProbe() {
             <Sparkles class="w-4 h-4 text-neutral-900" />
             <h3 class="text-sm font-semibold text-neutral-900">{{ currentTypeInfo.label }}</h3>
           </div>
-          <div v-if="analysis?.confidence" class="px-2.5 py-0.5 bg-neutral-100 rounded-full text-xs font-mono text-neutral-700">
-            拟合置信度: <span class="font-bold text-neutral-900">{{ (analysis.confidence * 100).toFixed(1) }}%</span>
+          <div v-if="recalculatedAnalysis?.confidence !== undefined" class="px-2.5 py-0.5 bg-neutral-100 rounded-full text-xs font-mono text-neutral-700">
+            重算拟合置信度: <span class="font-bold text-neutral-900">{{ (recalculatedAnalysis.confidence * 100).toFixed(1) }}%</span>
           </div>
         </div>
         <p class="text-xs text-neutral-500 leading-relaxed">{{ currentTypeInfo.desc }}</p>
 
-        <div v-if="analysis?.metrics && Object.keys(analysis.metrics).length > 0" class="flex flex-wrap gap-2 pt-1 font-mono text-[11px]">
+        <div v-if="recalculatedAnalysis?.metrics && Object.keys(recalculatedAnalysis.metrics).length > 0" class="flex flex-wrap gap-2 pt-1 font-mono text-[11px]">
           <span
-            v-for="(val, key) in analysis.metrics"
+            v-for="(val, key) in recalculatedAnalysis.metrics"
             :key="key"
             class="px-2 py-0.5 bg-neutral-50 rounded border border-neutral-200/80 text-neutral-700"
           >
@@ -118,13 +291,13 @@ function restartProbe() {
       <div class="lg:col-span-4 p-5 bg-white border border-neutral-200/80 rounded-xl flex flex-col justify-between space-y-3 shadow-xs">
         <div class="space-y-1">
           <div class="text-xs font-semibold uppercase tracking-wider text-neutral-700">报告导出与共享</div>
-          <p class="text-[11px] text-neutral-400">将响应曲线导出为标准化文件，方便存档与跨软件复盘</p>
+          <p class="text-[11px] text-neutral-400">导出的数据自动按当前选择的死区范围与重算归一化保存</p>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
           <button
             @click="downloadExport('json')"
-            :disabled="points.length === 0"
+            :disabled="recalculatedPoints.length === 0"
             class="py-2 px-3 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 text-white text-xs rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer font-medium"
           >
             <Download class="w-3.5 h-3.5" />
@@ -132,7 +305,7 @@ function restartProbe() {
           </button>
           <button
             @click="downloadExport('csv')"
-            :disabled="points.length === 0"
+            :disabled="recalculatedPoints.length === 0"
             class="py-2 px-3 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 disabled:opacity-30 text-neutral-800 text-xs rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer font-medium"
           >
             <FileSpreadsheet class="w-3.5 h-3.5 text-neutral-700" />
@@ -171,31 +344,108 @@ function restartProbe() {
       {{ importMessage }}
     </div>
 
+    <!-- Deadzone Range Adjuster Panel -->
+    <div v-if="recalculatedPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-100 pb-3">
+        <div class="flex items-center space-x-2">
+          <Sliders class="w-4 h-4 text-neutral-800" />
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+            死区节点选取与归一化重算 (Analysis Deadzone Filter)
+          </h3>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button
+            type="button"
+            @click="resetDeadzoneRange(0.0, 1.0)"
+            class="px-2.5 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[11px] font-medium text-neutral-700 transition cursor-pointer"
+          >
+            重置全量 (0% ~ 100%)
+          </button>
+          <button
+            type="button"
+            @click="resetDeadzoneRange(sessionStore.config?.inner_deadzone || 0.0, sessionStore.config?.outer_deadzone || 1.0)"
+            class="px-2.5 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[11px] font-medium text-neutral-700 transition cursor-pointer"
+          >
+            应用标定死区 ({{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}% ~ {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%)
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Inner Deadzone Slider -->
+        <div class="space-y-2 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/70">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-neutral-700">内死区截取点 (Inner Cutoff)</label>
+            <span class="text-xs font-mono font-bold text-neutral-900">
+              {{ (analysisInnerDeadzone * 100).toFixed(1) }}% ({{ analysisInnerDeadzone.toFixed(3) }})
+            </span>
+          </div>
+          <input
+            type="range"
+            v-model.number="analysisInnerDeadzone"
+            min="0.0"
+            :max="Math.min(0.99, analysisOuterDeadzone - 0.01)"
+            step="0.005"
+            class="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+          />
+        </div>
+
+        <!-- Outer Deadzone Slider -->
+        <div class="space-y-2 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/70">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-neutral-700">外死区截取点 (Outer Cutoff)</label>
+            <span class="text-xs font-mono font-bold text-neutral-900">
+              {{ (analysisOuterDeadzone * 100).toFixed(1) }}% ({{ analysisOuterDeadzone.toFixed(3) }})
+            </span>
+          </div>
+          <input
+            type="range"
+            v-model.number="analysisOuterDeadzone"
+            :min="Math.max(0.01, analysisInnerDeadzone + 0.01)"
+            max="1.0"
+            step="0.005"
+            class="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-mono text-neutral-500 pt-1 border-t border-neutral-100 gap-1">
+        <div>
+          选中行程: <span class="font-bold text-neutral-900">{{ (analysisInnerDeadzone * 100).toFixed(1) }}% ~ {{ (analysisOuterDeadzone * 100).toFixed(1) }}%</span>
+          （包含 <span class="font-bold text-neutral-900">{{ recalculatedPoints.filter(p => p.in_analysis_range).length }}</span> / {{ recalculatedPoints.length }} 个测量节点）
+        </div>
+        <div v-if="recalculatedPoints.filter(p => p.in_analysis_range && p.valid).length > 0">
+          有效重算区间: {{ Math.min(...recalculatedPoints.filter(p => p.in_analysis_range && p.valid && p.velocity_px_s !== null).map(p => p.velocity_px_s!)).toFixed(1) }} px/s
+          ➔ {{ Math.max(...recalculatedPoints.filter(p => p.in_analysis_range && p.valid && p.velocity_px_s !== null).map(p => p.velocity_px_s!)).toFixed(1) }} px/s
+        </div>
+      </div>
+    </div>
+
     <!-- Main Chart Section -->
     <div class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-2">
           <BarChart3 class="w-3.5 h-3.5 text-neutral-700" />
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">手柄响应曲线图表</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">手柄响应曲线图表 (重算归一化)</h3>
         </div>
         <div class="flex items-center space-x-4 text-xs font-mono text-neutral-500">
           <span class="flex items-center space-x-1.5">
             <span class="w-3 h-0.5 bg-neutral-400 inline-block"></span>
-            <span>内死区: {{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}%</span>
+            <span>截取内死区: {{ (analysisInnerDeadzone * 100).toFixed(1) }}%</span>
           </span>
           <span class="flex items-center space-x-1.5">
             <span class="w-3 h-0.5 bg-neutral-700 inline-block"></span>
-            <span>外死区: {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%</span>
+            <span>截取外死区: {{ (analysisOuterDeadzone * 100).toFixed(1) }}%</span>
           </span>
         </div>
       </div>
 
-      <div v-if="points.length > 0">
+      <div v-if="recalculatedPoints.length > 0">
         <CurveChart
-          :points="points"
+          :points="recalculatedPoints"
           :imported-points="importedResult?.points ?? []"
-          :inner-deadzone="sessionStore.config?.inner_deadzone"
-          :outer-deadzone="sessionStore.config?.outer_deadzone"
+          :inner-deadzone="analysisInnerDeadzone"
+          :outer-deadzone="analysisOuterDeadzone"
         />
       </div>
       <div v-else class="h-64 flex flex-col items-center justify-center text-neutral-400 text-xs space-y-2">
@@ -205,9 +455,9 @@ function restartProbe() {
     </div>
 
     <!-- Data Table Breakdown -->
-    <div v-if="points.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
+    <div v-if="recalculatedPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
       <div class="flex items-center justify-between">
-        <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">各采样点详表</span>
+        <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">各采样点详表 (含重新归一化)</span>
         <span v-if="noise" class="text-xs font-mono text-neutral-500">
           校准静止噪底: X={{ noise.floor_x }} px/s, Y={{ noise.floor_y }} px/s
         </span>
@@ -220,23 +470,49 @@ function restartProbe() {
               <th class="p-2">#</th>
               <th class="p-2">摇杆输入 (X)</th>
               <th class="p-2">角速度 (px/s)</th>
-              <th class="p-2">归一化比例</th>
+              <th class="p-2">重算归一化</th>
               <th class="p-2">稳定性</th>
+              <th class="p-2">覆盖率</th>
               <th class="p-2">采样尝试</th>
               <th class="p-2">状态</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-neutral-100 text-neutral-800">
-            <tr v-for="(pt, idx) in points" :key="idx" class="hover:bg-neutral-50">
+            <tr
+              v-for="(pt, idx) in recalculatedPoints"
+              :key="idx"
+              class="transition"
+              :class="[
+                pt.in_analysis_range ? 'hover:bg-neutral-50' : 'bg-neutral-50/50 opacity-60 hover:opacity-100'
+              ]"
+            >
               <td class="p-2 text-neutral-400">{{ idx + 1 }}</td>
               <td class="p-2 font-bold">{{ (pt.input * 100).toFixed(1) }}%</td>
               <td class="p-2 font-medium">{{ pt.velocity_px_s !== null ? `${pt.velocity_px_s} px/s` : '-' }}</td>
-              <td class="p-2">{{ pt.normalized_speed !== null ? `${(pt.normalized_speed * 100).toFixed(1)}%` : '-' }}</td>
+              <td class="p-2 font-semibold" :class="pt.in_analysis_range ? 'text-neutral-900' : 'text-neutral-400'">
+                {{ pt.normalized_speed !== null ? `${(pt.normalized_speed * 100).toFixed(1)}%` : '-' }}
+              </td>
               <td class="p-2">{{ Math.round(pt.stability * 100) }}%</td>
+              <td class="p-2">{{ Math.round(((pt as any).coverage ?? pt.stability) * 100) }}%</td>
               <td class="p-2 text-neutral-500">{{ pt.attempts }} 次</td>
               <td class="p-2">
-                <span :class="pt.valid ? 'text-neutral-900 font-medium' : 'text-rose-600'">
-                  {{ pt.valid ? '有效' : '失稳' }}
+                <span
+                  v-if="!pt.valid"
+                  class="text-rose-600 font-medium"
+                >
+                  失稳
+                </span>
+                <span
+                  v-else-if="pt.in_analysis_range"
+                  class="text-neutral-900 font-medium"
+                >
+                  有效 (范围内)
+                </span>
+                <span
+                  v-else
+                  class="text-neutral-400"
+                >
+                  死区截取外
                 </span>
               </td>
             </tr>

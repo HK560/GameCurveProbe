@@ -29,6 +29,8 @@ export interface ProbeConfig {
   wake_input?: string
   auto_wake?: boolean
   start_countdown_s?: number
+  horizontal_fov_deg?: number | null
+  bidirectional?: boolean
 }
 
 export interface RoiRect {
@@ -66,6 +68,9 @@ export interface MeasurementPoint {
   stability: number
   valid: boolean
   attempts: number
+  coverage?: number
+  velocity_mad?: number | null
+  repeat_values?: number[]
 }
 
 export interface NoiseResult {
