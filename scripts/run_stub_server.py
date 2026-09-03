@@ -79,7 +79,7 @@ def main() -> None:
     static_dir = Path(__file__).resolve().parent.parent / "src" / "gamecurveprobe" / "web_dist"
     app = create_app(context_factory=lambda: context, static_dir=static_dir)
 
-    url = f"http://{host}:{port}/?token={token}"
+    url = f"http://{host}:{port}/#token={token}"
     print(f"\n=======================================================")
     print(f" GameCurveProbe 2.0 WebUI Stub Server")
     print(f" Running at: {url}")
