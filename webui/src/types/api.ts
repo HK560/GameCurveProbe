@@ -1,0 +1,128 @@
+export type RangeMode = 'full' | 'outer_only' | 'deadzone_only'
+
+export type JobState =
+  | 'queued'
+  | 'running'
+  | 'canceling'
+  | 'completed'
+  | 'canceled'
+  | 'failed'
+
+export interface ProbeConfig {
+  capture_fps: number
+  point_count: number
+  repeats: number
+  settle_ms: number
+  sample_ms: number
+  range_mode: RangeMode
+  inner_deadzone: number
+  outer_deadzone: number
+}
+
+export interface RoiRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface CaptureInfo {
+  window_id: number
+  backend: string
+  width: number
+  height: number
+  target_fps: number
+  title?: string
+}
+
+export interface CaptureHealth {
+  is_healthy: boolean
+  fps: number
+  duplicate_ratio: number
+}
+
+export interface MeasurementPoint {
+  input: number
+  velocity_px_s: number | null
+  normalized_speed: number | null
+  stability: number
+  valid: boolean
+  attempts: number
+}
+
+export interface NoiseResult {
+  floor_x: number
+  floor_y: number
+  valid_frames: number
+  confidence: number
+}
+
+export interface RoiQuality {
+  score: number
+  level: 'poor' | 'fair' | 'good' | 'excellent'
+  metrics: {
+    gradient: number
+    corners: number
+    entropy: number
+    tracking: number
+  }
+  suggestions: string[]
+}
+
+export interface CurveAnalysis {
+  curve_type: string
+  confidence: number
+  metrics: Record<string, number>
+}
+
+export interface SessionResult {
+  points: MeasurementPoint[]
+  noise?: NoiseResult | null
+  analysis?: CurveAnalysis | null
+  schema_version: number
+  measured_at: string
+}
+
+export interface JobSnapshot {
+  id: string
+  kind: string
+  state: JobState
+  progress?: Record<string, any> | null
+  result?: any | null
+  error?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface SessionSnapshot {
+  id: string
+  config: ProbeConfig
+  roi?: RoiRect | null
+  capture?: CaptureInfo | null
+  roi_quality?: RoiQuality | null
+  last_job?: JobSnapshot | null
+  active_job?: JobSnapshot | null
+  last_result?: SessionResult | null
+}
+
+export interface WindowInfo {
+  id: number
+  title: string
+  pid?: number | null
+  width: number
+  height: number
+}
+
+export interface ProbeSnapshot {
+  active: boolean
+  output: number
+  step: number
+  direction: string
+  expires_in: number
+}
+
+export interface ApiError {
+  code: string
+  message: string
+  details?: Record<string, any>
+}
