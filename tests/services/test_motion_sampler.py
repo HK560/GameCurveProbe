@@ -279,3 +279,21 @@ def test_sample_filtered_uses_cumulative_displacement_slope_when_dx_is_available
     assert sample.valid_frames == 3
     assert sample.px_per_sec_x == 200.0
     assert sample.px_per_sec_y == 20.0
+
+
+def test_sampler_stops_when_cancel_is_set() -> None:
+    import threading
+
+    cancel = threading.Event()
+    cancel.set()
+    sampler = MotionSampler(sleep=lambda _: None)
+    capture = FakeCaptureBackend([FakeFrame(object(), 0.01)])
+    estimator = FakeEstimator([FakeEstimate(px_per_sec_x=100.0, px_per_sec_y=20.0, tracked_points=10, confidence=0.50)])
+    sample = sampler.sample_filtered(
+        capture,
+        estimator,
+        RoiRect(0, 0, 20, 20),
+        sample_ms=45,
+        cancel_event=cancel,
+    )
+    assert sample.canceled is True

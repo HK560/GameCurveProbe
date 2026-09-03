@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import threading
 import time
-from statistics import median
 from collections.abc import Callable
 from dataclasses import dataclass
+from statistics import median
 from typing import Protocol
 
 from gamecurveprobe.models import RoiRect
@@ -18,6 +19,7 @@ class MotionSample:
     average_confidence: float = 0.0
     sample_duration_ms: int = 0
     stability_score: float = 0.0
+    canceled: bool = False
 
 
 class CapturedFrame(Protocol):
@@ -55,7 +57,13 @@ class MotionSampler:
         self._time_source = time_source or time.perf_counter
         self._sleep = sleep or time.sleep
 
-    def sample(self, capture_backend: CaptureBackend, estimator: MotionEstimator, roi: RoiRect, sample_ms: int) -> MotionSample:
+    def sample(
+        self,
+        capture_backend: CaptureBackend,
+        estimator: MotionEstimator,
+        roi: RoiRect,
+        sample_ms: int,
+    ) -> MotionSample:
         return self.sample_filtered(
             capture_backend,
             estimator,
@@ -71,15 +79,23 @@ class MotionSampler:
         sample_ms: int,
         min_tracked_points: int = 1,
         min_confidence: float = 0.0,
+        cancel_event: threading.Event | None = None,
     ) -> MotionSample:
-        estimates, duplicate_frames = self._collect_estimates(
+        if cancel_event is not None and cancel_event.is_set():
+            return MotionSample(canceled=True)
+
+        estimates, duplicate_frames, was_canceled = self._collect_estimates(
             capture_backend,
             estimator,
             roi,
             sample_ms,
             min_tracked_points=min_tracked_points,
             min_confidence=min_confidence,
+            cancel_event=cancel_event,
         )
+
+        if was_canceled:
+            return MotionSample(canceled=True)
 
         if not estimates:
             return MotionSample()
@@ -113,15 +129,23 @@ class MotionSampler:
         min_tracked_points: int = 1,
         min_confidence: float = 0.0,
         band_percentile: float = 0.9,
+        cancel_event: threading.Event | None = None,
     ) -> MotionSample:
-        estimates, _duplicate_frames = self._collect_estimates(
+        if cancel_event is not None and cancel_event.is_set():
+            return MotionSample(canceled=True)
+
+        estimates, _duplicate_frames, was_canceled = self._collect_estimates(
             capture_backend,
             estimator,
             roi,
             sample_ms,
             min_tracked_points=min_tracked_points,
             min_confidence=min_confidence,
+            cancel_event=cancel_event,
         )
+        if was_canceled:
+            return MotionSample(canceled=True)
+
         xs = [estimate.px_per_sec_x for estimate in estimates]
         ys = [estimate.px_per_sec_y for estimate in estimates]
         confidences = [estimate.confidence for estimate in estimates]
@@ -143,24 +167,47 @@ class MotionSampler:
         sample_ms: int,
         min_tracked_points: int,
         min_confidence: float,
-    ) -> tuple[list[_AcceptedEstimate], int]:
+        cancel_event: threading.Event | None = None,
+    ) -> tuple[list[_AcceptedEstimate], int, bool]:
         deadline = self._time_source() + (sample_ms / 1000.0)
         estimates: list[_AcceptedEstimate] = []
         duplicate_frames = 0
 
         while self._time_source() < deadline:
-            captured = capture_backend.grab_frame()
+            if cancel_event is not None and cancel_event.is_set():
+                return estimates, duplicate_frames, True
+
+            if hasattr(capture_backend, "read"):
+                captured = capture_backend.read(100)
+            elif hasattr(capture_backend, "grab_frame"):
+                captured = capture_backend.grab_frame()
+            else:
+                captured = None
+
             if captured is None:
-                self._sleep(0.005)
+                if cancel_event is not None:
+                    if cancel_event.wait(0.005):
+                        return estimates, duplicate_frames, True
+                else:
+                    self._sleep(0.005)
                 continue
 
-            if captured.timestamp > deadline:
+            frame_obj = getattr(captured, "image", None)
+            if frame_obj is None:
+                frame_obj = getattr(captured, "frame", None)
+
+            ts = getattr(captured, "timestamp", None)
+            if ts is None and hasattr(captured, "monotonic_ns"):
+                ts = captured.monotonic_ns / 1e9
+            ts = float(ts or self._time_source())
+
+            if ts > deadline:
                 break
             if bool(getattr(captured, "is_duplicate", False)):
                 duplicate_frames += 1
                 continue
 
-            estimate = estimator.update(captured.frame, roi, captured.timestamp)
+            estimate = estimator.update(frame_obj, roi, ts)
             if estimate is None or estimate.tracked_points <= 0:
                 continue
             if estimate.tracked_points < min_tracked_points:
@@ -170,7 +217,7 @@ class MotionSampler:
 
             estimates.append(
                 _AcceptedEstimate(
-                    timestamp=float(captured.timestamp),
+                    timestamp=ts,
                     px_per_sec_x=float(estimate.px_per_sec_x),
                     px_per_sec_y=float(estimate.px_per_sec_y),
                     confidence=float(estimate.confidence),
@@ -179,9 +226,11 @@ class MotionSampler:
                 )
             )
 
-        return estimates, duplicate_frames
+        return estimates, duplicate_frames, False
 
-    def _calculate_axis_speed(self, velocities: list[float], displacements: list[float | None], times: list[float]) -> float:
+    def _calculate_axis_speed(
+        self, velocities: list[float], displacements: list[float | None], times: list[float]
+    ) -> float:
         usable_displacements = [value for value in displacements if value is not None]
         if len(usable_displacements) == len(times) and len(times) >= 2:
             duration = times[-1] - times[0]
