@@ -61,6 +61,10 @@ class ProbeConfig:
     range_mode: RangeMode = RangeMode.ACTIVE_RANGE
     inner_deadzone: float = 0.0
     outer_deadzone: float = 1.0
+    hotkey_enabled: bool = True
+    hotkey_start: str = "F9"
+    hotkey_stop: str = "F10"
+    sound_enabled: bool = True
 
     @classmethod
     def from_preset(cls, name: str) -> "ProbeConfig":
@@ -76,6 +80,8 @@ class ProbeConfig:
             raise DomainError("INVALID_CONFIG", "Measurement timing and count values are invalid.")
         if not 0.0 <= self.inner_deadzone < self.outer_deadzone <= 1.0:
             raise DomainError("INVALID_CONFIG", "outer_deadzone must be greater than inner_deadzone within [0, 1].")
+        if not self.hotkey_start or not self.hotkey_stop:
+            raise DomainError("INVALID_CONFIG", "Hotkey values cannot be empty.")
 
     def point_values(self) -> list[float]:
         start, end = (

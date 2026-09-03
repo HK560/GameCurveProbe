@@ -6,10 +6,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from gamecurveprobe.events import EventHub
+from gamecurveprobe.services.audio_service import AudioService
 from gamecurveprobe.services.capture_service import CaptureService
 from gamecurveprobe.services.controller_service import ControllerService
 from gamecurveprobe.services.deadzone_probe_service import DeadzoneProbeService
 from gamecurveprobe.services.export_service import ExportService
+from gamecurveprobe.services.hotkey_service import HotkeyService
 from gamecurveprobe.services.idle_noise_runner import IdleNoiseRunner
 from gamecurveprobe.services.job_manager import JobManager
 from gamecurveprobe.services.measurement_runner import MeasurementRunner
@@ -30,19 +32,24 @@ class AppContext:
     idle_noise: IdleNoiseRunner
     export: ExportService
     events: EventHub
+    audio: AudioService | None = None
+    hotkey: HotkeyService | None = None
     allowed_origins: frozenset[str] = frozenset({"http://127.0.0.1", "http://localhost"})
     shutdown_callback: Callable[[], None] = lambda: None
 
     def close(self) -> None:
         self.jobs.cancel_active()
         self.jobs.wait(timeout=3.0)
-        for cleanup in (
+        cleanups = [
             self.probe.close,
             self.controller.close,
             self.capture.close,
             self.jobs.close,
             self.events.close,
-        ):
+        ]
+        if self.hotkey is not None:
+            cleanups.append(self.hotkey.close)
+        for cleanup in cleanups:
             self._run_bounded(cleanup, timeout=0.5)
 
     def request_shutdown(self) -> None:

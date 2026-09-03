@@ -15,6 +15,16 @@ def _load_vgamepad() -> ModuleType:
 class VgamepadControllerBackend(VirtualControllerBackend):
     """Virtual Xbox 360 controller backend backed by vgamepad."""
 
+    _BUTTONS = {
+        "right_stick": "XUSB_GAMEPAD_RIGHT_THUMB",
+        "x": "XUSB_GAMEPAD_X",
+        "y": "XUSB_GAMEPAD_Y",
+        "a": "XUSB_GAMEPAD_A",
+        "b": "XUSB_GAMEPAD_B",
+        "left_bumper": "XUSB_GAMEPAD_LEFT_SHOULDER",
+        "right_bumper": "XUSB_GAMEPAD_RIGHT_SHOULDER",
+    }
+
     def __init__(self, module_loader: Callable[[], ModuleType] | None = None) -> None:
         self._module_loader = module_loader or _load_vgamepad
         self._gamepad = None
@@ -54,6 +64,28 @@ class VgamepadControllerBackend(VirtualControllerBackend):
             raise RuntimeError("Controller backend is not connected.")
         module = self._module_loader()
         self._gamepad.release_button(button=module.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB)
+        self._gamepad.update()
+
+    def press_wake_input(self, input_name: str) -> None:
+        if self._gamepad is None:
+            raise RuntimeError("Controller backend is not connected.")
+        if input_name == "left_trigger":
+            self._gamepad.left_trigger(value=255)
+        elif input_name == "right_trigger":
+            self._gamepad.right_trigger(value=255)
+        else:
+            self._gamepad.press_button(button=getattr(self._module_loader().XUSB_BUTTON, self._BUTTONS[input_name]))
+        self._gamepad.update()
+
+    def release_wake_input(self, input_name: str) -> None:
+        if self._gamepad is None:
+            return
+        if input_name == "left_trigger":
+            self._gamepad.left_trigger(value=0)
+        elif input_name == "right_trigger":
+            self._gamepad.right_trigger(value=0)
+        else:
+            self._gamepad.release_button(button=getattr(self._module_loader().XUSB_BUTTON, self._BUTTONS[input_name]))
         self._gamepad.update()
 
     def neutral(self) -> None:

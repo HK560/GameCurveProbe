@@ -7,6 +7,8 @@ export const useConnectionStore = defineStore('connection', () => {
   const token = ref<string>(api.getToken())
   const connected = ref<boolean>(false)
   const controllerReady = ref<boolean>(true)
+  const controllerEnabled = ref<boolean>(true)
+  const isUpdatingController = ref<boolean>(false)
   const error = ref<string | null>(null)
 
   async function checkHealth() {
@@ -14,10 +16,22 @@ export const useConnectionStore = defineStore('connection', () => {
       const res = await api.getHealth()
       connected.value = res.status === 'ok'
       controllerReady.value = res.controller_ready
+      controllerEnabled.value = res.controller_enabled
       error.value = null
     } catch (err: any) {
       connected.value = false
       error.value = err.message || '无法连接到本地服务'
+    }
+  }
+
+  async function setControllerEnabled(enabled: boolean) {
+    isUpdatingController.value = true
+    try {
+      const res = await api.setControllerEnabled(enabled)
+      controllerEnabled.value = res.enabled
+      controllerReady.value = res.available
+    } finally {
+      isUpdatingController.value = false
     }
   }
 
@@ -32,8 +46,11 @@ export const useConnectionStore = defineStore('connection', () => {
     token,
     connected,
     controllerReady,
+    controllerEnabled,
+    isUpdatingController,
     error,
     checkHealth,
+    setControllerEnabled,
     updateToken,
   }
 })

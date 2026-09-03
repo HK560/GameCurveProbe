@@ -11,6 +11,8 @@ class ControllerService:
         self._backend = backend
         self._lock = threading.RLock()
         self._owner: str | None = None
+        self._enabled = True
+        self._wake_timer: threading.Timer | None = None
 
     def connect(self) -> None:
         with self._lock:
@@ -24,6 +26,37 @@ class ControllerService:
         with self._lock:
             return bool(getattr(self._backend, "connected", False))
 
+    def is_enabled(self) -> bool:
+        with self._lock:
+            return self._enabled
+
+    def set_enabled(self, enabled: bool) -> bool:
+        with self._lock:
+            if enabled:
+                self._enabled = True
+                self.connect()
+                return True
+            if self._owner is not None:
+                raise DomainError(
+                    "CONTROLLER_RESOURCE_BUSY",
+                    f"Controller resource is currently owned by {self._owner}.",
+                )
+            self._backend.neutral()
+            self._backend.disconnect()
+            self._enabled = False
+            return False
+
+    def wake(self, input_name: str, duration_seconds: float = 0.5) -> None:
+        with self._lock:
+            self.acquire("wake")
+            try:
+                self._backend.press_wake_input(input_name)
+            except Exception:
+                self.release("wake")
+                raise
+            self._wake_timer = threading.Timer(duration_seconds, self._release_wake, args=(input_name,))
+            self._wake_timer.daemon = True
+            self._wake_timer.start()
 
     def acquire(self, owner: str) -> None:
         with self._lock:
@@ -32,6 +65,8 @@ class ControllerService:
                     "CONTROLLER_RESOURCE_BUSY",
                     f"Controller resource is currently owned by {self._owner}.",
                 )
+            if not self._enabled:
+                raise DomainError("CONTROLLER_DISABLED", "Enable the ViGEmBus controller first.")
             if self._owner is None:
                 self.connect()
                 self._owner = owner
@@ -69,8 +104,20 @@ class ControllerService:
 
     def close(self) -> None:
         with self._lock:
+            if self._wake_timer is not None:
+                self._wake_timer.cancel()
+                self._wake_timer = None
             try:
                 self._backend.neutral()
             finally:
                 self._owner = None
                 self._backend.disconnect()
+                self._enabled = False
+
+    def _release_wake(self, input_name: str) -> None:
+        with self._lock:
+            try:
+                self._backend.release_wake_input(input_name)
+            finally:
+                self._wake_timer = None
+                self.release("wake")

@@ -18,6 +18,10 @@ export interface ProbeConfig {
   range_mode: RangeMode
   inner_deadzone: number
   outer_deadzone: number
+  hotkey_enabled?: boolean
+  hotkey_start?: string
+  hotkey_stop?: string
+  sound_enabled?: boolean
 }
 
 export interface RoiRect {

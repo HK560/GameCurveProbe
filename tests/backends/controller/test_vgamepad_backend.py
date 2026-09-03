@@ -20,6 +20,12 @@ class FakePad:
     def release_button(self, button) -> None:
         self.calls.append(("release", button))
 
+    def left_trigger(self, value: int) -> None:
+        self.calls.append(("left_trigger", value))
+
+    def right_trigger(self, value: int) -> None:
+        self.calls.append(("right_trigger", value))
+
     def update(self) -> None:
         self.calls.append(("update",))
 
@@ -83,6 +89,37 @@ def test_set_right_stick_requires_connect() -> None:
     )
     with pytest.raises(RuntimeError, match="Controller backend is not connected"):
         backend.set_right_stick(0.1, 0.2)
+
+
+def test_wake_inputs_press_and_release_buttons_and_triggers() -> None:
+    fake_pad = FakePad()
+    a_button = object()
+    fake_module = types.SimpleNamespace(
+        VX360Gamepad=lambda: fake_pad,
+        XUSB_BUTTON=types.SimpleNamespace(
+            XUSB_GAMEPAD_RIGHT_THUMB=object(),
+            XUSB_GAMEPAD_X=object(),
+            XUSB_GAMEPAD_Y=object(),
+            XUSB_GAMEPAD_A=a_button,
+            XUSB_GAMEPAD_B=object(),
+            XUSB_GAMEPAD_LEFT_SHOULDER=object(),
+            XUSB_GAMEPAD_RIGHT_SHOULDER=object(),
+        ),
+    )
+    backend = VgamepadControllerBackend(module_loader=lambda: fake_module)
+    backend.connect()
+
+    backend.press_wake_input("a")
+    backend.release_wake_input("a")
+    backend.press_wake_input("left_trigger")
+    backend.release_wake_input("left_trigger")
+
+    assert fake_pad.calls == [
+        ("press", a_button), ("update",),
+        ("release", a_button), ("update",),
+        ("left_trigger", 255), ("update",),
+        ("left_trigger", 0), ("update",),
+    ]
 
 
 @pytest.mark.parametrize("x, y", [(-1.0, 1.0), (1.0, -1.0), (0.0, 0.0)])

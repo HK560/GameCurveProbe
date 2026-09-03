@@ -27,6 +27,14 @@ class VirtualControllerBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def press_wake_input(self, input_name: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def release_wake_input(self, input_name: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def neutral(self) -> None:
         raise NotImplementedError
 

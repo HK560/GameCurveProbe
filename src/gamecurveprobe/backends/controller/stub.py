@@ -30,6 +30,12 @@ class StubControllerBackend(VirtualControllerBackend):
     def release_left_stick(self) -> None:
         self.events.append(("release_left_stick",))
 
+    def press_wake_input(self, input_name: str) -> None:
+        self.events.append(("press_wake_input", input_name))
+
+    def release_wake_input(self, input_name: str) -> None:
+        self.events.append(("release_wake_input", input_name))
+
     def neutral(self) -> None:
         self.last_input = (0.0, 0.0)
         self.events.append(("neutral",))
