@@ -64,6 +64,10 @@ class ProbeConfig:
     hotkey_enabled: bool = True
     hotkey_start: str = "F9"
     hotkey_stop: str = "F10"
+    hotkey_dz_inc: str = "F7"
+    hotkey_dz_dec: str = "F6"
+    dz_target: str = "inner"
+    dz_step: float = 0.005
     sound_enabled: bool = True
     wake_input: str = "right_stick"
     auto_wake: bool = True

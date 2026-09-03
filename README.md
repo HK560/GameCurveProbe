@@ -79,7 +79,11 @@ npm run dev
 cd webui
 npm run build
 ```
-编译产物将输出至 `src/gamecurveprobe/web_dist`。
+编译产物输出至 `webui/dist`。应用启动时可用以下脚本自动构建、同步并启动：
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-app.ps1
+```
+可追加 `--no-browser` 或其他应用启动参数。
 
 ### 打包 Python Wheel
 ```powershell

@@ -46,6 +46,10 @@ class ConfigUpdateRequest(StrictDto):
     hotkey_enabled: bool | None = None
     hotkey_start: str | None = None
     hotkey_stop: str | None = None
+    hotkey_dz_inc: str | None = None
+    hotkey_dz_dec: str | None = None
+    dz_target: str | None = None
+    dz_step: float | None = Field(default=None, ge=0.0001, le=0.5)
     sound_enabled: bool | None = None
     wake_input: str | None = None
     auto_wake: bool | None = None

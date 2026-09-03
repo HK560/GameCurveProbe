@@ -260,18 +260,20 @@ onBeforeUnmount(() => {
             <button
               type="button"
               @click.stop="adjustInner(-step)"
-              class="w-7 h-7 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center transition cursor-pointer"
-              title="减小内死区"
+              class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
+              title="减小内死区 [F6]"
             >
               <Minus class="w-3.5 h-3.5" />
+              <span v-if="activeProbeTarget === 'inner'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F6</span>
             </button>
             <button
               type="button"
               @click.stop="adjustInner(step)"
-              class="w-7 h-7 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center transition cursor-pointer"
-              title="增大内死区"
+              class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
+              title="增大内死区 [F7]"
             >
               <Plus class="w-3.5 h-3.5" />
+              <span v-if="activeProbeTarget === 'inner'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F7</span>
             </button>
           </div>
         </div>
@@ -323,18 +325,20 @@ onBeforeUnmount(() => {
             <button
               type="button"
               @click.stop="adjustOuter(-step)"
-              class="w-7 h-7 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center transition cursor-pointer"
-              title="减小外死区"
+              class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
+              title="减小外死区 [F6]"
             >
               <Minus class="w-3.5 h-3.5" />
+              <span v-if="activeProbeTarget === 'outer'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F6</span>
             </button>
             <button
               type="button"
               @click.stop="adjustOuter(step)"
-              class="w-7 h-7 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center transition cursor-pointer"
-              title="增大外死区"
+              class="h-7 px-1.5 rounded bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 text-neutral-700 flex items-center justify-center space-x-1 transition cursor-pointer text-xs"
+              title="增大外死区 [F7]"
             >
               <Plus class="w-3.5 h-3.5" />
+              <span v-if="activeProbeTarget === 'outer'" class="text-[9px] font-mono bg-neutral-200/80 px-1 rounded text-neutral-600 font-semibold">F7</span>
             </button>
           </div>
         </div>

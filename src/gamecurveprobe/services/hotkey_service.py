@@ -20,6 +20,8 @@ MOD_NOREPEAT = 0x4000
 
 HOTKEY_ID_START = 1001
 HOTKEY_ID_STOP = 1002
+HOTKEY_ID_DZ_INC = 1003
+HOTKEY_ID_DZ_DEC = 1004
 
 VK_MAPPING: dict[str, int] = {
     "F1": 0x70,
@@ -102,12 +104,18 @@ class HotkeyService:
         self,
         on_start: Callable[[], None] | None = None,
         on_stop: Callable[[], None] | None = None,
+        on_dz_inc: Callable[[], None] | None = None,
+        on_dz_dec: Callable[[], None] | None = None,
     ) -> None:
         self.on_start = on_start
         self.on_stop = on_stop
+        self.on_dz_inc = on_dz_inc
+        self.on_dz_dec = on_dz_dec
         self._enabled = False
         self._start_key = "F9"
         self._stop_key = "F10"
+        self._dz_inc_key = "F7"
+        self._dz_dec_key = "F6"
 
         self._thread: threading.Thread | None = None
         self._thread_id: int | None = None
@@ -117,20 +125,40 @@ class HotkeyService:
     def enabled(self) -> bool:
         return self._enabled
 
-    def update_config(self, enabled: bool, start_key: str, stop_key: str) -> None:
+    def update_config(
+        self,
+        enabled: bool,
+        start_key: str,
+        stop_key: str,
+        dz_inc_key: str = "F7",
+        dz_dec_key: str = "F6",
+    ) -> None:
         with self._lock:
             changed = (
-                self._enabled != enabled or self._start_key != start_key or self._stop_key != stop_key
+                self._enabled != enabled
+                or self._start_key != start_key
+                or self._stop_key != stop_key
+                or self._dz_inc_key != dz_inc_key
+                or self._dz_dec_key != dz_dec_key
             )
             self._enabled = enabled
             self._start_key = start_key
             self._stop_key = stop_key
+            self._dz_inc_key = dz_inc_key
+            self._dz_dec_key = dz_dec_key
 
         if changed:
             self._restart_listener()
 
-    def start(self, enabled: bool = True, start_key: str = "F9", stop_key: str = "F10") -> None:
-        self.update_config(enabled, start_key, stop_key)
+    def start(
+        self,
+        enabled: bool = True,
+        start_key: str = "F9",
+        stop_key: str = "F10",
+        dz_inc_key: str = "F7",
+        dz_dec_key: str = "F6",
+    ) -> None:
+        self.update_config(enabled, start_key, stop_key, dz_inc_key, dz_dec_key)
 
     def close(self) -> None:
         self._stop_listener()
@@ -171,6 +199,8 @@ class HotkeyService:
             self._thread_id = thread_id
             start_key = self._start_key
             stop_key = self._stop_key
+            dz_inc_key = self._dz_inc_key
+            dz_dec_key = self._dz_dec_key
 
         class MSG(ctypes.Structure):
             _fields_ = [
@@ -189,6 +219,8 @@ class HotkeyService:
 
         registered_start = False
         registered_stop = False
+        registered_dz_inc = False
+        registered_dz_dec = False
 
         try:
             # Register start hotkey
@@ -212,6 +244,28 @@ class HotkeyService:
                     logger.warning("Failed to register global hotkey STOP (%s)", stop_key)
             except Exception as exc:
                 logger.warning("Invalid stop hotkey configuration '%s': %s", stop_key, exc)
+
+            # Register deadzone inc hotkey
+            try:
+                mods, vk = parse_hotkey_string(dz_inc_key)
+                if user32.RegisterHotKey(None, HOTKEY_ID_DZ_INC, mods, vk):
+                    registered_dz_inc = True
+                    logger.info("Registered global hotkey DZ_INC (%s)", dz_inc_key)
+                else:
+                    logger.warning("Failed to register global hotkey DZ_INC (%s)", dz_inc_key)
+            except Exception as exc:
+                logger.warning("Invalid dz_inc hotkey configuration '%s': %s", dz_inc_key, exc)
+
+            # Register deadzone dec hotkey
+            try:
+                mods, vk = parse_hotkey_string(dz_dec_key)
+                if user32.RegisterHotKey(None, HOTKEY_ID_DZ_DEC, mods, vk):
+                    registered_dz_dec = True
+                    logger.info("Registered global hotkey DZ_DEC (%s)", dz_dec_key)
+                else:
+                    logger.warning("Failed to register global hotkey DZ_DEC (%s)", dz_dec_key)
+            except Exception as exc:
+                logger.warning("Invalid dz_dec hotkey configuration '%s': %s", dz_dec_key, exc)
 
             # Message Loop
             class MSG(ctypes.Structure):
@@ -241,6 +295,18 @@ class HotkeyService:
                             self.on_stop()
                         except Exception as exc:
                             logger.error("Error executing stop hotkey callback: %s", exc)
+                    elif hotkey_id == HOTKEY_ID_DZ_INC and self.on_dz_inc:
+                        logger.info("Global hotkey DZ_INC pressed")
+                        try:
+                            self.on_dz_inc()
+                        except Exception as exc:
+                            logger.error("Error executing dz_inc hotkey callback: %s", exc)
+                    elif hotkey_id == HOTKEY_ID_DZ_DEC and self.on_dz_dec:
+                        logger.info("Global hotkey DZ_DEC pressed")
+                        try:
+                            self.on_dz_dec()
+                        except Exception as exc:
+                            logger.error("Error executing dz_dec hotkey callback: %s", exc)
 
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
@@ -249,5 +315,9 @@ class HotkeyService:
                 user32.UnregisterHotKey(None, HOTKEY_ID_START)
             if registered_stop:
                 user32.UnregisterHotKey(None, HOTKEY_ID_STOP)
+            if registered_dz_inc:
+                user32.UnregisterHotKey(None, HOTKEY_ID_DZ_INC)
+            if registered_dz_dec:
+                user32.UnregisterHotKey(None, HOTKEY_ID_DZ_DEC)
             with self._lock:
                 self._thread_id = None
