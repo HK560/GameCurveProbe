@@ -4,29 +4,36 @@ from gamecurveprobe.backends.controller.base import VirtualControllerBackend
 
 
 class StubControllerBackend(VirtualControllerBackend):
-    """Placeholder controller backend until the Windows backend is selected."""
+    """Stub controller backend for deterministic testing and headless execution."""
 
-    def __init__(self) -> None:
+    def __init__(self, can_probe: bool = True) -> None:
         self.connected = False
         self.last_input = (0.0, 0.0)
+        self.can_probe = can_probe
+        self.events: list[tuple[object, ...]] = []
 
     def probe(self) -> bool:
-        return False
+        self.events.append(("probe",))
+        return self.can_probe
 
     def connect(self) -> None:
         self.connected = True
+        self.events.append(("connect",))
 
     def set_right_stick(self, x: float, y: float) -> None:
         self.last_input = (x, y)
+        self.events.append(("set_right_stick", x, y))
 
     def press_left_stick(self) -> None:
-        return None
+        self.events.append(("press_left_stick",))
 
     def release_left_stick(self) -> None:
-        return None
+        self.events.append(("release_left_stick",))
 
     def neutral(self) -> None:
         self.last_input = (0.0, 0.0)
+        self.events.append(("neutral",))
 
     def disconnect(self) -> None:
         self.connected = False
+        self.events.append(("disconnect",))
