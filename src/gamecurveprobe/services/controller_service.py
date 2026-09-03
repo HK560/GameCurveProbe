@@ -14,9 +14,16 @@ class ControllerService:
 
     def connect(self) -> None:
         with self._lock:
+            if getattr(self._backend, "connected", False):
+                return
             if not self._backend.probe():
                 raise DomainError("CONTROLLER_UNAVAILABLE", "Install vgamepad and ViGEmBus first.")
             self._backend.connect()
+
+    def is_connected(self) -> bool:
+        with self._lock:
+            return bool(getattr(self._backend, "connected", False))
+
 
     def acquire(self, owner: str) -> None:
         with self._lock:

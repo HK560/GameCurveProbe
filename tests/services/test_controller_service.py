@@ -21,3 +21,16 @@ def test_close_neutralizes_before_disconnect() -> None:
     service.connect()
     service.close()
     assert backend.events[-2:] == [("neutral",), ("disconnect",)]
+
+
+def test_controller_connect_is_idempotent() -> None:
+    backend = StubControllerBackend()
+    service = ControllerService(backend)
+    service.connect()
+    assert backend.connected is True
+    connect_event_count = sum(1 for ev in backend.events if ev[0] == "connect")
+    assert connect_event_count == 1
+    # Second connect should be a no-op
+    service.connect()
+    assert sum(1 for ev in backend.events if ev[0] == "connect") == 1
+
