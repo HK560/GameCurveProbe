@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
 import type { MeasurementPoint } from '../types/api'
 import { buildVelocitySeries } from '../services/chartSeries'
+import { t } from '../services/i18n'
 
 use([LineChart, CanvasRenderer, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent])
 
@@ -31,7 +32,7 @@ function updateChart() {
     markLines.push({
       xAxis: props.innerDeadzone,
       label: {
-        formatter: `内死区: ${(props.innerDeadzone * 100).toFixed(1)}%`,
+        formatter: `${t('inner_deadzone')}: ${(props.innerDeadzone * 100).toFixed(1)}%`,
         color: '#525252',
         fontSize: 10,
         position: 'insideEndTop',
@@ -47,7 +48,7 @@ function updateChart() {
     markLines.push({
       xAxis: props.outerDeadzone,
       label: {
-        formatter: `外死区: ${(props.outerDeadzone * 100).toFixed(1)}%`,
+        formatter: `${t('outer_deadzone')}: ${(props.outerDeadzone * 100).toFixed(1)}%`,
         color: '#525252',
         fontSize: 10,
         position: 'insideEndTop',
@@ -73,23 +74,23 @@ function updateChart() {
         if (!params || params.length === 0) return ''
         const xVal = params[0].value[0]
         const pt = props.points.find((p) => Math.abs(p.input - xVal) < 1e-4)
-        let html = `<div class="font-medium text-neutral-900 mb-1 border-b border-neutral-100 pb-1">推杆行程: ${(xVal * 100).toFixed(1)}% (${xVal.toFixed(3)})</div>`
+        let html = `<div class="font-medium text-neutral-900 mb-1 border-b border-neutral-100 pb-1">${t('chart_tooltip_input')}: ${(xVal * 100).toFixed(1)}% (${xVal.toFixed(3)})</div>`
         if (pt) {
           if (pt.valid && pt.velocity_px_s !== null) {
-            html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-500">测定速度:</span> <span class="font-mono font-medium text-neutral-900">${pt.velocity_px_s} px/s</span></div>`
+            html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-500">${t('chart_tooltip_velocity')}:</span> <span class="font-mono font-medium text-neutral-900">${pt.velocity_px_s} px/s</span></div>`
             if (pt.normalized_speed !== null) {
-              html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-500">归一化比例:</span> <span class="font-mono text-neutral-900">${(pt.normalized_speed * 100).toFixed(1)}%</span></div>`
+              html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-500">${t('chart_tooltip_normalized')}:</span> <span class="font-mono text-neutral-900">${(pt.normalized_speed * 100).toFixed(1)}%</span></div>`
             }
-            html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-400">稳定性评分:</span> <span class="font-mono text-neutral-600">${Math.round(pt.stability * 100)}%</span></div>`
+            html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-400">${t('chart_tooltip_stability')}:</span> <span class="font-mono text-neutral-600">${Math.round(pt.stability * 100)}%</span></div>`
           } else {
-            html += `<div class="text-neutral-500 text-xs font-medium">该点追踪无效 (特征丢失或微动不足)</div>`
+            html += `<div class="text-neutral-500 text-xs font-medium">${t('chart_tooltip_invalid')}</div>`
           }
         }
         return html
       },
     },
     legend: {
-      data: [...velocitySeries.map((series) => series.name), '归一化响应'],
+      data: [...velocitySeries.map((series) => series.name), t('series_normalized')],
       textStyle: { color: '#737373', fontSize: 11 },
       top: 0,
       right: 16,
@@ -105,7 +106,7 @@ function updateChart() {
       type: 'value',
       min: 0.0,
       max: 1.0,
-      name: '推杆行程',
+      name: t('chart_axis_input'),
       nameLocation: 'middle',
       nameGap: 24,
       nameTextStyle: { color: '#737373', fontSize: 11 },
@@ -120,7 +121,7 @@ function updateChart() {
     yAxis: [
       {
         type: 'value',
-        name: '速度 (px/s)',
+        name: t('chart_axis_velocity'),
         position: 'left',
         nameTextStyle: { color: '#171717', fontSize: 11 },
         axisLabel: { color: '#737373', fontSize: 10 },
@@ -129,7 +130,7 @@ function updateChart() {
       },
       {
         type: 'value',
-        name: '归一化比例',
+        name: t('chart_axis_normalized'),
         min: 0,
         max: 1,
         position: 'right',
@@ -163,7 +164,7 @@ function updateChart() {
         markLine: markLines.length > 0 ? { data: markLines, symbol: 'none' } : undefined,
       })),
       {
-        name: '归一化响应',
+        name: t('series_normalized'),
         type: 'line',
         yAxisIndex: 1,
         data: normalizedData,

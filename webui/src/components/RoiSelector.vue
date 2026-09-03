@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import type { RoiRect } from '../types/api'
+import { t } from '../services/i18n'
 
 const props = defineProps<{
   imageUrl: string | null
@@ -99,8 +100,8 @@ function onMouseUp() {
       class="w-full h-full object-contain pointer-events-none"
     />
     <div v-else class="text-neutral-500 text-xs flex flex-col items-center">
-      <p>暂无画面信号</p>
-      <p class="text-[11px] text-neutral-600 mt-1">请先选择游戏窗口并启动捕获</p>
+      <p>{{ t('no_signal_preview') }}</p>
+      <p class="text-[11px] text-neutral-600 mt-1">{{ t('select_window_signal_hint') }}</p>
     </div>
 
     <!-- Active/Temp ROI Overlay Box -->
