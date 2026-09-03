@@ -12,16 +12,39 @@ from build_tools.pyinstaller_support import collect_package_files
 
 vgamepad_datas = collect_package_files("vgamepad", ["win/vigem/client/**/*.dll"])
 
+# Include Vue frontend static build
+web_dist_path = project_root / "src" / "gamecurveprobe" / "web_dist"
+datas = vgamepad_datas + [
+    (str(web_dist_path), "gamecurveprobe/web_dist"),
+]
+
+hiddenimports = [
+    "uvicorn.logging",
+    "uvicorn.loops",
+    "uvicorn.loops.auto",
+    "uvicorn.protocols",
+    "uvicorn.protocols.http",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.websockets",
+    "uvicorn.protocols.websockets.auto",
+    "uvicorn.lifespans",
+    "uvicorn.lifespans.on",
+    "uvicorn.lifespans.auto",
+    "windows_capture",
+    "fastapi",
+    "pydantic",
+]
+
 a = Analysis(
     ["src\\gamecurveprobe\\__main__.py"],
     pathex=["src"],
     binaries=[],
-    datas=vgamepad_datas,
-    hiddenimports=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["PySide6", "tkinter", "matplotlib"],
     noarchive=False,
     optimize=0,
 )
@@ -40,7 +63,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
