@@ -64,6 +64,18 @@ async function handleAttach() {
   }
 }
 
+async function onWindowSelect() {
+  if (selectedWindowId.value) {
+    await handleAttach()
+  }
+}
+
+async function onBackendOrFpsChange() {
+  if (selectedWindowId.value && isAttached.value) {
+    await handleAttach()
+  }
+}
+
 async function onRoiChange(newRoi: RoiRect) {
   try {
     await sessionStore.updateRoi(newRoi)
@@ -95,6 +107,7 @@ function proceedToDeadzone() {
         </div>
         <select
           v-model="selectedWindowId"
+          @change="onWindowSelect"
           class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option :value="null" disabled>-- 请选择运行中的游戏窗口 --</option>
@@ -113,6 +126,7 @@ function proceedToDeadzone() {
         <label class="text-xs font-medium text-neutral-700">抓图引擎</label>
         <select
           v-model="selectedBackend"
+          @change="onBackendOrFpsChange"
           class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option value="auto">Auto（WGC 独立窗口捕获）</option>
@@ -126,6 +140,7 @@ function proceedToDeadzone() {
         <label class="text-xs font-medium text-neutral-700">目标帧率</label>
         <select
           v-model="selectedFps"
+          @change="onBackendOrFpsChange"
           class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option :value="60">60 FPS</option>
