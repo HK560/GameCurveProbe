@@ -80,22 +80,22 @@ function proceedToDeadzone() {
 <template>
   <div class="space-y-6">
     <!-- Top Control Bar -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs">
       <!-- Window Selector -->
       <div class="lg:col-span-5 space-y-1.5">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-semibold text-slate-300">目标游戏窗口</label>
+          <label class="text-xs font-medium text-neutral-700">目标游戏窗口</label>
           <button
             @click="refreshWindows"
-            class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
+            class="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center space-x-1 cursor-pointer transition"
           >
             <RefreshCw class="w-3 h-3" />
-            <span>刷新窗口列表</span>
+            <span>刷新列表</span>
           </button>
         </div>
         <select
           v-model="selectedWindowId"
-          class="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"
+          class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option :value="null" disabled>-- 请选择运行中的游戏窗口 --</option>
           <option
@@ -110,10 +110,10 @@ function proceedToDeadzone() {
 
       <!-- Backend Selector -->
       <div class="lg:col-span-3 space-y-1.5">
-        <label class="text-xs font-semibold text-slate-300">抓图引擎</label>
+        <label class="text-xs font-medium text-neutral-700">抓图引擎</label>
         <select
           v-model="selectedBackend"
-          class="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"
+          class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option value="auto">Auto（WGC 独立窗口捕获）</option>
           <option value="wgc">Windows Graphics Capture（WGC）</option>
@@ -123,10 +123,10 @@ function proceedToDeadzone() {
 
       <!-- Target FPS -->
       <div class="lg:col-span-2 space-y-1.5">
-        <label class="text-xs font-semibold text-slate-300">目标帧率</label>
+        <label class="text-xs font-medium text-neutral-700">目标帧率</label>
         <select
           v-model="selectedFps"
-          class="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"
+          class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         >
           <option :value="60">60 FPS</option>
           <option :value="120">120 FPS (推荐)</option>
@@ -140,10 +140,10 @@ function proceedToDeadzone() {
           type="button"
           @click="handleAttach"
           :disabled="!selectedWindowId || sessionStore.isAttaching"
-          class="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-md shadow-indigo-600/30 flex items-center justify-center space-x-2 transition cursor-pointer"
+          class="w-full bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer"
         >
           <RefreshCw v-if="sessionStore.isAttaching" class="w-4 h-4 animate-spin" />
-          <Play v-else class="w-4 h-4 fill-current" />
+          <Play v-else class="w-3.5 h-3.5 fill-current" />
           <span>{{ isAttached ? '重新绑定' : '开始抓图' }}</span>
         </button>
       </div>
@@ -151,28 +151,28 @@ function proceedToDeadzone() {
 
     <div
       v-if="modeInfo.warning"
-      class="p-3.5 rounded-xl bg-amber-950/50 border border-amber-500/50 text-amber-200 text-xs flex items-center space-x-2"
+      class="p-3 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-700 text-xs flex items-center space-x-2"
     >
-      <ShieldAlert class="w-4 h-4 shrink-0 text-amber-400" />
+      <ShieldAlert class="w-4 h-4 shrink-0 text-neutral-600" />
       <span>{{ modeInfo.warning }}</span>
     </div>
 
     <!-- Error Alert -->
-    <div v-if="errorMessage || healthErrorMessage" class="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 text-xs flex items-center space-x-2">
-      <ShieldAlert class="w-4 h-4 shrink-0 text-rose-400" />
+    <div v-if="errorMessage || healthErrorMessage" class="p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-neutral-900 text-xs flex items-center space-x-2">
+      <ShieldAlert class="w-4 h-4 shrink-0 text-neutral-800" />
       <span>{{ errorMessage || healthErrorMessage }}</span>
     </div>
 
     <!-- Main Viewport and ROI Assessment Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       <!-- Left: Interactive Canvas / Viewport -->
-      <div class="lg:col-span-8 space-y-3">
-        <div class="flex items-center justify-between text-xs text-slate-400">
+      <div class="lg:col-span-8 space-y-2">
+        <div class="flex items-center justify-between text-xs text-neutral-500">
           <span class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full" :class="isAttached ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'"></span>
-            <span>{{ isAttached ? `已连接: ${captureInfo?.width}×${captureInfo?.height} @ ${captureInfo?.target_fps}Hz` : '画面未就绪' }}</span>
+            <span class="w-2 h-2 rounded-full" :class="isAttached ? 'bg-emerald-500' : 'bg-neutral-400'"></span>
+            <span class="font-mono text-neutral-700">{{ isAttached ? `已连接: ${captureInfo?.width}×${captureInfo?.height} @ ${captureInfo?.target_fps}Hz` : '画面未就绪' }}</span>
           </span>
-          <span class="text-slate-500">提示: 鼠标左键在画面中拖拽画框选取</span>
+          <span class="text-neutral-400">提示: 鼠标左键在画面中拖拽画框选取</span>
         </div>
 
         <RoiSelector
@@ -187,8 +187,8 @@ function proceedToDeadzone() {
       <!-- Right: ROI Diagnostics and Quality Score -->
       <div class="lg:col-span-4 space-y-4 flex flex-col justify-between">
         <div class="space-y-4">
-          <div class="flex items-center space-x-2 text-sm font-semibold text-slate-200">
-            <Settings2 class="w-4 h-4 text-indigo-400" />
+          <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            <Settings2 class="w-3.5 h-3.5" />
             <span>特征分析 (ROI 质量)</span>
           </div>
 
@@ -196,31 +196,31 @@ function proceedToDeadzone() {
           <QualityBadge :quality="roiQuality" />
 
           <!-- Coordinate Display -->
-          <div v-if="sessionStore.roi" class="p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2">
-            <div class="text-xs font-semibold text-slate-300">选区坐标信息</div>
-            <div class="grid grid-cols-2 gap-2 text-xs font-mono text-slate-300">
-              <div class="bg-slate-800/80 px-2.5 py-1.5 rounded border border-slate-700/60">
-                <span class="text-slate-500">X:</span> {{ sessionStore.roi.x }} px
+          <div v-if="sessionStore.roi" class="bg-white p-3.5 rounded-xl border border-neutral-200/80 space-y-2">
+            <div class="text-xs font-medium text-neutral-700">选区坐标信息</div>
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono text-neutral-600">
+              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+                <span class="text-neutral-400">X:</span> {{ sessionStore.roi.x }} px
               </div>
-              <div class="bg-slate-800/80 px-2.5 py-1.5 rounded border border-slate-700/60">
-                <span class="text-slate-500">Y:</span> {{ sessionStore.roi.y }} px
+              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+                <span class="text-neutral-400">Y:</span> {{ sessionStore.roi.y }} px
               </div>
-              <div class="bg-slate-800/80 px-2.5 py-1.5 rounded border border-slate-700/60">
-                <span class="text-slate-500">宽:</span> {{ sessionStore.roi.width }} px
+              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+                <span class="text-neutral-400">宽:</span> {{ sessionStore.roi.width }} px
               </div>
-              <div class="bg-slate-800/80 px-2.5 py-1.5 rounded border border-slate-700/60">
-                <span class="text-slate-500">高:</span> {{ sessionStore.roi.height }} px
+              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+                <span class="text-neutral-400">高:</span> {{ sessionStore.roi.height }} px
               </div>
             </div>
           </div>
         </div>
 
         <!-- Next Step Button -->
-        <div class="pt-4 border-t border-slate-800">
+        <div class="pt-2">
           <button
             @click="proceedToDeadzone"
             :disabled="!isAttached || !sessionStore.roi || (roiQuality ? roiQuality.score < 25 : false)"
-            class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition cursor-pointer"
+            class="w-full bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer"
           >
             <span>下一步：手柄死区标定</span>
             <ArrowRight class="w-4 h-4" />

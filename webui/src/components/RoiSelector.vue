@@ -85,7 +85,7 @@ function onMouseUp() {
 <template>
   <div
     ref="containerRef"
-    class="relative w-full overflow-hidden rounded-xl bg-black select-none cursor-crosshair border border-slate-800 flex items-center justify-center min-h-[300px]"
+    class="relative w-full overflow-hidden rounded-xl bg-neutral-950 select-none cursor-crosshair border border-neutral-200/80 flex items-center justify-center min-h-[300px]"
     @mousedown="onMouseDown"
     @mousemove="onMouseMove"
     @mouseup="onMouseUp"
@@ -98,15 +98,15 @@ function onMouseUp() {
       alt="Preview"
       class="w-full h-full object-contain pointer-events-none"
     />
-    <div v-else class="text-slate-500 text-sm flex flex-col items-center">
+    <div v-else class="text-neutral-500 text-xs flex flex-col items-center">
       <p>暂无画面信号</p>
-      <p class="text-xs text-slate-600 mt-1">请先选择游戏窗口并启动捕获</p>
+      <p class="text-[11px] text-neutral-600 mt-1">请先选择游戏窗口并启动捕获</p>
     </div>
 
     <!-- Active/Temp ROI Overlay Box -->
     <div
       v-if="(tempRoi || currentRoi) && imageWidth && imageHeight"
-      class="absolute border-2 border-indigo-400 bg-indigo-500/20 shadow-lg shadow-indigo-500/30 pointer-events-none transition-all duration-75"
+      class="absolute border-2 border-white bg-white/10 pointer-events-none transition-all duration-75"
       :style="{
         left: `${(((tempRoi || currentRoi)!.x) / imageWidth) * 100}%`,
         top: `${(((tempRoi || currentRoi)!.y) / imageHeight) * 100}%`,
@@ -114,14 +114,14 @@ function onMouseUp() {
         height: `${(((tempRoi || currentRoi)!.height) / imageHeight) * 100}%`,
       }"
     >
-      <div class="absolute -top-6 left-0 bg-indigo-600 text-white text-[10px] font-mono px-1.5 py-0.5 rounded shadow">
+      <div class="absolute -top-6 left-0 bg-neutral-900 text-white text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-700 shadow-sm">
         ROI: {{ (tempRoi || currentRoi)!.width }}×{{ (tempRoi || currentRoi)!.height }}
       </div>
       <!-- Corner Markers -->
-      <div class="absolute -top-1 -left-1 w-2 h-2 bg-indigo-300 rounded-full"></div>
-      <div class="absolute -top-1 -right-1 w-2 h-2 bg-indigo-300 rounded-full"></div>
-      <div class="absolute -bottom-1 -left-1 w-2 h-2 bg-indigo-300 rounded-full"></div>
-      <div class="absolute -bottom-1 -right-1 w-2 h-2 bg-indigo-300 rounded-full"></div>
+      <div class="absolute -top-1 -left-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+      <div class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+      <div class="absolute -bottom-1 -left-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+      <div class="absolute -bottom-1 -right-1 w-1.5 h-1.5 bg-white rounded-full"></div>
     </div>
   </div>
 </template>
