@@ -143,3 +143,36 @@ def test_runner_rejects_result_below_valid_point_threshold() -> None:
         )
 
     assert exc.value.code == "MEASUREMENT_QUALITY_LOW"
+
+
+def test_measurement_runner_publishes_lifecycle_phases() -> None:
+    events: list[dict] = []
+    backend = StubControllerBackend()
+    controller = ControllerService(backend)
+    config = ProbeConfig(point_count=5, repeats=1)
+    runner = MeasurementRunner(
+        controller=controller,
+        capture_factory=lambda: FakeCapture(),
+        estimator_factory=lambda: FakeEstimator(),
+        motion_sampler=FakeSampler(px_per_sec=120.0),
+        roi=RoiRect(0, 0, 100, 100),
+        sleep=lambda *_: None,
+    )
+
+    result = runner.run(config, threading.Event(), lambda ev: events.append(dict(ev)))
+
+    phases = [ev.get("phase") for ev in events]
+    assert "stage_start" in phases
+    assert "point_settle" in phases
+    assert "point_sampling" in phases
+    assert "point_done" in phases
+    assert "stage_completed" in phases
+
+    # Check point_done payload contains point and message
+    done_events = [ev for ev in events if ev.get("phase") == "point_done"]
+    assert len(done_events) == 5
+    assert "point" in done_events[0]
+    assert "message" in done_events[0]
+    assert done_events[0]["current_point"] == 1
+    assert done_events[0]["total_points"] == 5
+
