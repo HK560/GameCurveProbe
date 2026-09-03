@@ -156,18 +156,18 @@ function proceedToMeasurement() {
           <div>
             <div class="flex items-center space-x-2">
               <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
-                摇杆实时输出微调与死区验证
+                {{ t('deadzone_verify_title') }}
               </h3>
               <span
                 v-if="probeActive"
                 class="flex items-center space-x-1.5 px-2 py-0.5 bg-neutral-900 text-white rounded-full text-[11px] font-mono"
               >
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>推杆输出中 ({{ expiresCountdown }}s)</span>
+                <span>{{ t('outputting_pulse') }} ({{ expiresCountdown }}s)</span>
               </span>
             </div>
             <p class="text-[11px] text-neutral-400">
-              激活后实时输出当前选中的死区点数值，观察游戏视口画面微动以精确测定死区边界
+              {{ t('probe_running_hint') }}
             </p>
           </div>
         </div>
@@ -264,7 +264,7 @@ function proceedToMeasurement() {
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-600">
             <Activity class="w-3.5 h-3.5 text-neutral-700" />
-            <span>画面静止噪底校准 (Noise Floor)</span>
+            <span>{{ t('noise_calibration_title') }}</span>
           </div>
           <button
             type="button"
@@ -272,15 +272,15 @@ function proceedToMeasurement() {
             :disabled="isMeasuringNoise"
             class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-3 py-1 rounded-md transition cursor-pointer font-medium"
           >
-            {{ isMeasuringNoise ? '采样中...' : '测定噪底' }}
+            {{ isMeasuringNoise ? t('noise_measuring') : t('measure_noise') }}
           </button>
         </div>
         <p class="text-[11px] text-neutral-500">
-          采样游戏画面在手柄回中完全静止时的背景微晃与噪点，用于在后续曲线测定中准确过滤环境噪底。
+          {{ t('noise_desc') }}
         </p>
         <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
-          <span>X 轴噪底: {{ sessionStore.noise.floor_x }} px/s</span>
-          <span>Y 轴噪底: {{ sessionStore.noise.floor_y }} px/s</span>
+          <span>{{ t('noise_x') }}: {{ sessionStore.noise.floor_x }} px/s</span>
+          <span>{{ t('noise_y') }}: {{ sessionStore.noise.floor_y }} px/s</span>
         </div>
       </div>
 

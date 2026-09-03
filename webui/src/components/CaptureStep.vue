@@ -160,7 +160,7 @@ function proceedToDeadzone() {
         >
           <RefreshCw v-if="sessionStore.isAttaching" class="w-4 h-4 animate-spin" />
           <Play v-else class="w-3.5 h-3.5 fill-current" />
-          <span>{{ isAttached ? '重新绑定' : t('start_capture') }}</span>
+          <span>{{ isAttached ? t('rebind') : t('start_capture') }}</span>
         </button>
       </div>
     </div>
@@ -186,9 +186,9 @@ function proceedToDeadzone() {
         <div class="flex items-center justify-between text-xs text-neutral-500">
           <span class="flex items-center space-x-1.5">
             <span class="w-2 h-2 rounded-full" :class="isAttached ? 'bg-emerald-500' : 'bg-neutral-400'"></span>
-            <span class="font-mono text-neutral-700">{{ isAttached ? `已连接: ${captureInfo?.width}×${captureInfo?.height} @ ${captureInfo?.target_fps}Hz` : '画面未就绪' }}</span>
+            <span class="font-mono text-neutral-700">{{ isAttached ? `${t('connected_status_label')}: ${captureInfo?.width}×${captureInfo?.height} @ ${captureInfo?.target_fps}Hz` : t('no_signal_preview') }}</span>
           </span>
-          <span class="text-neutral-400">提示: 鼠标左键在画面中拖拽画框选取</span>
+          <span class="text-neutral-400">{{ t('roi_instruction') }}</span>
         </div>
 
         <RoiSelector
@@ -205,7 +205,7 @@ function proceedToDeadzone() {
         <div class="space-y-4">
           <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
             <Settings2 class="w-3.5 h-3.5" />
-            <span>特征分析 (ROI 质量)</span>
+            <span>{{ t('captured_frame_roi') }}</span>
           </div>
 
           <!-- Quality Badge and Progress -->
@@ -213,7 +213,7 @@ function proceedToDeadzone() {
 
           <!-- Coordinate Display -->
           <div v-if="sessionStore.roi" class="bg-white p-3.5 rounded-xl border border-neutral-200/80 space-y-2">
-            <div class="text-xs font-medium text-neutral-700">选区坐标信息</div>
+            <div class="text-xs font-medium text-neutral-700">{{ t('roi_size_info') }}</div>
             <div class="grid grid-cols-2 gap-2 text-xs font-mono text-neutral-600">
               <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
                 <span class="text-neutral-400">X:</span> {{ sessionStore.roi.x }} px
@@ -222,10 +222,10 @@ function proceedToDeadzone() {
                 <span class="text-neutral-400">Y:</span> {{ sessionStore.roi.y }} px
               </div>
               <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
-                <span class="text-neutral-400">宽:</span> {{ sessionStore.roi.width }} px
+                <span class="text-neutral-400">{{ t('width_label') }}:</span> {{ sessionStore.roi.width }} px
               </div>
               <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
-                <span class="text-neutral-400">高:</span> {{ sessionStore.roi.height }} px
+                <span class="text-neutral-400">{{ t('height_label') }}:</span> {{ sessionStore.roi.height }} px
               </div>
             </div>
           </div>

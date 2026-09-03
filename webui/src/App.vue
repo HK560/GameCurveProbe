@@ -66,7 +66,7 @@ const steps = computed(() => [
 ])
 
 async function quitApplication() {
-  if (!window.confirm('确定要退出 GameCurveProbe 吗？当前测定任务将被安全中止。')) {
+  if (!window.confirm(t('quit_confirm'))) {
     return
   }
 
@@ -218,7 +218,7 @@ onUnmounted(() => {
           <button
             type="button"
             class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer border border-neutral-200/80"
-            title="设置快捷键与操作提示音效"
+            :title="t('hotkey_modal_title_tooltip')"
             @click="showHotkeyModal = true"
           >
             <Keyboard class="w-3.5 h-3.5 text-neutral-700" />
@@ -231,7 +231,7 @@ onUnmounted(() => {
           <label
             class="flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:bg-neutral-100 cursor-pointer"
             :class="{ 'opacity-50 cursor-wait': connectionStore.isUpdatingController }"
-            title="启用或关闭 ViGEmBus 虚拟手柄"
+            :title="t('vigem_toggle_tooltip')"
           >
             <span>ViGEmBus</span>
             <input
@@ -239,7 +239,7 @@ onUnmounted(() => {
               class="sr-only peer"
               :checked="connectionStore.controllerEnabled"
               :disabled="connectionStore.isUpdatingController || !connectionStore.controllerReady"
-              aria-label="ViGEmBus 虚拟手柄开关"
+              :aria-label="t('controller_enable')"
               @change="toggleController"
             />
             <span class="relative w-7 h-4 rounded-full bg-neutral-300 peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-3 after:h-3 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-3"></span>
@@ -303,7 +303,7 @@ onUnmounted(() => {
           <button
             type="button"
             class="flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer border border-neutral-200/80"
-            title="Switch Language / 切换语言"
+            :title="t('lang_switcher_tooltip')"
             @click="setLocale(currentLocale === 'zh' ? 'en' : 'zh')"
           >
             <Globe class="w-3.5 h-3.5 text-neutral-700" />
@@ -313,7 +313,7 @@ onUnmounted(() => {
           <button
             type="button"
             :disabled="isQuitting"
-            title="退出并关闭 GameCurveProbe"
+            :title="t('quit_tooltip')"
             class="flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition disabled:opacity-50 cursor-pointer"
             @click="quitApplication"
           >
