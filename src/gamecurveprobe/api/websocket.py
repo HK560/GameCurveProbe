@@ -14,6 +14,14 @@ from gamecurveprobe.events import PreviewFrame
 ws_router = APIRouter(prefix="/api/ws")
 
 
+async def next_event_async(subscriber: Any, timeout: float) -> Any:
+    return await asyncio.to_thread(subscriber.next_event, timeout)
+
+
+async def next_preview_async(subscriber: Any, timeout: float) -> Any:
+    return await asyncio.to_thread(subscriber.next_preview, timeout)
+
+
 def _verify_ws_auth(websocket: WebSocket, context: AppContext) -> bool:
     token = websocket.query_params.get("token")
     if not token or token != context.token:
@@ -72,7 +80,7 @@ async def ws_events(websocket: WebSocket) -> None:
         print(f"[WS-Events] Dispatched session_sync to {websocket.client} (has_capture={snapshot.capture is not None})")
 
         while True:
-            envelope = subscriber.next_event(timeout=0.05)
+            envelope = await next_event_async(subscriber, 0.05)
             if envelope is not None:
                 msg = {
                     "seq": envelope.seq,
@@ -106,7 +114,7 @@ async def ws_preview(websocket: WebSocket) -> None:
 
     try:
         while True:
-            preview: PreviewFrame | None = subscriber.next_preview(timeout=0.05)
+            preview: PreviewFrame | None = await next_preview_async(subscriber, 0.05)
             if preview is not None:
                 monotonic_ms = int(preview.monotonic_ns / 1_000_000)
                 header = struct.pack(

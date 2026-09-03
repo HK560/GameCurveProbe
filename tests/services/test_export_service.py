@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from gamecurveprobe.models import (
     CurveAnalysis,
     MeasurementPoint,
@@ -49,3 +51,23 @@ def test_schema_one_round_trip_and_csv_header() -> None:
     assert restored == RESULT
     csv_text = service.export_csv(RESULT)
     assert csv_text.splitlines()[0] == "Input,Velocity_px_s,Normalized_Ratio,Stability,Valid,Attempts"
+
+
+def test_schema_one_export_contains_reproducibility_metadata() -> None:
+    result = SessionResult(
+        schema_version=1,
+        measured_at="2026-09-03T15:00:00Z",
+        session_id="session-1",
+        environment={"capture_backend": "wgc", "roi": {"x": 1, "y": 2, "width": 3, "height": 4}},
+        config={"point_count": 17, "range_mode": "active_range"},
+        warnings=("low_fps",),
+    )
+
+    payload = json.loads(ExportService().export_json(result))
+
+    assert payload["session_id"] == "session-1"
+    assert payload["captured_at"] == "2026-09-03T15:00:00Z"
+    assert payload["environment"]["capture_backend"] == "wgc"
+    assert payload["config"]["point_count"] == 17
+    assert payload["warnings"] == ["low_fps"]
+    assert ExportService().import_json(json.dumps(payload).encode()) == result

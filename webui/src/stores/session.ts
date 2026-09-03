@@ -4,6 +4,7 @@ import { api } from '../services/api'
 import { ws } from '../services/ws'
 import type {
   CaptureInfo,
+  CaptureHealth,
   JobSnapshot,
   ProbeConfig,
   ProbeSnapshot,
@@ -27,7 +28,10 @@ export const useSessionStore = defineStore('session', () => {
   const internalActiveJob = ref<JobSnapshot | null>(null)
   const internalLastJob = ref<JobSnapshot | null>(null)
   const internalLastResult = ref<SessionResult | null>(null)
+  const importedResult = ref<SessionResult | null>(null)
   const internalCapture = ref<CaptureInfo | null>(null)
+  const captureHealth = ref<CaptureHealth | null>(null)
+  const internalNoise = ref<SessionSnapshot['noise']>(null)
 
   const activeJob = computed(() => internalActiveJob.value ?? session.value?.active_job ?? null)
   const lastJob = computed(() => internalLastJob.value ?? session.value?.last_job ?? null)
@@ -36,6 +40,7 @@ export const useSessionStore = defineStore('session', () => {
   const config = computed(() => session.value?.config ?? null)
   const roi = computed(() => session.value?.roi ?? null)
   const roiQuality = computed(() => session.value?.roi_quality ?? null)
+  const noise = computed(() => internalNoise.value ?? session.value?.noise ?? null)
 
   async function loadInitialData() {
     try {
@@ -45,6 +50,7 @@ export const useSessionStore = defineStore('session', () => {
         internalActiveJob.value = session.value.active_job ?? null
         internalLastJob.value = session.value.last_job ?? null
         internalLastResult.value = session.value.last_result ?? null
+        internalNoise.value = session.value.noise ?? null
       }
     } catch (err) {
       console.warn('Failed to load session:', err)
@@ -68,10 +74,20 @@ export const useSessionStore = defineStore('session', () => {
       if (session.value) {
         session.value.capture = cap
       }
+      try {
+        captureHealth.value = await api.getCaptureHealth()
+      } catch {
+        captureHealth.value = null
+      }
       return cap
     } finally {
       isAttaching.value = false
     }
+  }
+
+  async function refreshCaptureHealth() {
+    captureHealth.value = await api.getCaptureHealth()
+    return captureHealth.value
   }
 
   async function updateConfig(changes: Partial<ProbeConfig>) {
@@ -143,6 +159,7 @@ export const useSessionStore = defineStore('session', () => {
       internalActiveJob.value = event.payload.session.active_job ?? null
       internalLastJob.value = event.payload.session.last_job ?? null
       internalLastResult.value = event.payload.session.last_result ?? null
+      internalNoise.value = event.payload.session.noise ?? null
     } else if (event.type === 'job_status' && event.payload?.job) {
       internalActiveJob.value = event.payload.job
       if (session.value) {
@@ -167,6 +184,11 @@ export const useSessionStore = defineStore('session', () => {
         if (session.value) {
           session.value.last_result = event.payload.result
         }
+      } else if (event.payload.result && event.payload.job?.kind === 'idle_noise') {
+        internalNoise.value = event.payload.result
+        if (session.value) {
+          session.value.noise = event.payload.result
+        }
       }
     } else if (event.type === 'job_failed' || event.type === 'job_canceled') {
       internalLastJob.value = event.payload.job
@@ -188,10 +210,7 @@ export const useSessionStore = defineStore('session', () => {
     } else if (event.type === 'deadzone_probe_updated' && event.payload?.probe) {
       probe.value = event.payload.probe
     } else if (event.type === 'result_imported' && event.payload?.result) {
-      internalLastResult.value = event.payload.result
-      if (session.value) {
-        session.value.last_result = event.payload.result
-      }
+      importedResult.value = event.payload.result
     }
   }
 
@@ -215,13 +234,17 @@ export const useSessionStore = defineStore('session', () => {
     activeJob,
     lastJob,
     lastResult,
+    importedResult,
     capture,
+    captureHealth,
     config,
     roi,
     roiQuality,
+    noise,
     loadInitialData,
     fetchWindows,
     attachCapture,
+    refreshCaptureHealth,
     updateConfig,
     updateRoi,
     startDeadzoneProbe,

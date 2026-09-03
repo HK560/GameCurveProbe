@@ -13,7 +13,7 @@ import type {
   WindowInfo,
 } from '../types/api'
 
-class ApiClient {
+export class ApiClient {
   private token: string = ''
 
   constructor() {
@@ -24,22 +24,23 @@ class ApiClient {
     if (typeof window === 'undefined') {
       return ''
     }
-    const params = new URLSearchParams(window.location.search)
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
     const tokenFromUrl = params.get('token')
     if (tokenFromUrl) {
       this.token = tokenFromUrl
-      localStorage.setItem('gcp_token', tokenFromUrl)
-    } else {
-      this.token = localStorage.getItem('gcp_token') || ''
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), gcpToken: tokenFromUrl },
+        '',
+        `${window.location.pathname}${window.location.search}`,
+      )
+    } else if (typeof window.history.state?.gcpToken === 'string') {
+      this.token = window.history.state.gcpToken
     }
     return this.token
   }
 
   public setToken(token: string) {
     this.token = token
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('gcp_token', token)
-    }
   }
 
   public getToken(): string {

@@ -2,8 +2,8 @@ import threading
 import pytest
 
 from gamecurveprobe.backends.controller.stub import StubControllerBackend
-from gamecurveprobe.errors import JobCanceled
-from gamecurveprobe.models import ProbeConfig, RoiRect
+from gamecurveprobe.errors import DomainError, JobCanceled
+from gamecurveprobe.models import NoiseResult, ProbeConfig, RoiRect
 from gamecurveprobe.services.controller_service import ControllerService
 from gamecurveprobe.services.measurement_runner import MeasurementRunner
 from gamecurveprobe.services.motion_sampler import MotionSample
@@ -48,14 +48,25 @@ class FakeSampler:
 
 
 def test_runner_keeps_invalid_point_without_faking_zero() -> None:
+    class FirstPointInvalidSampler(FakeSampler):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def sample_filtered(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return MotionSample(valid_frames=0)
+            return super().sample_filtered(*args, **kwargs)
+
     backend = StubControllerBackend()
     controller = ControllerService(backend)
-    config = ProbeConfig(point_count=5, repeats=1)
+    config = ProbeConfig(point_count=6, repeats=1)
     runner = MeasurementRunner(
         controller=controller,
         capture_factory=lambda: FakeCapture(),
         estimator_factory=lambda: FakeEstimator(),
-        motion_sampler=FakeSampler(valid_frames=0),
+        motion_sampler=FirstPointInvalidSampler(),
         roi=RoiRect(0, 0, 100, 100),
         sleep=lambda *_: None,
     )
@@ -81,3 +92,54 @@ def test_runner_neutralizes_when_canceled_during_settle() -> None:
     with pytest.raises(JobCanceled):
         runner.run(config, cancel, lambda event: None)
     assert backend.events[-1] == ("neutral",)
+
+
+def test_runner_uses_job_roi_and_subtracts_noise_floor() -> None:
+    class RecordingSampler(FakeSampler):
+        seen_roi = None
+
+        def sample_filtered(self, capture, estimator, roi, duration_ms, **kwargs):
+            self.seen_roi = roi
+            return super().sample_filtered(capture, estimator, roi, duration_ms, **kwargs)
+
+    sampler = RecordingSampler(px_per_sec=25.0)
+    runner = MeasurementRunner(
+        controller=ControllerService(StubControllerBackend()),
+        capture_factory=lambda: FakeCapture(),
+        estimator_factory=lambda: FakeEstimator(),
+        motion_sampler=sampler,
+        sleep=lambda *_: None,
+    )
+    roi = RoiRect(11, 12, 80, 90)
+
+    result = runner.run(
+        ProbeConfig(point_count=5, repeats=1),
+        threading.Event(),
+        lambda event: None,
+        roi=roi,
+        noise=NoiseResult(floor_x=5.0, floor_y=0.0, valid_frames=10, confidence=0.9),
+    )
+
+    assert sampler.seen_roi == roi
+    assert result.points[0].velocity_px_s == 20.0
+    assert result.noise is not None
+
+
+def test_runner_rejects_result_below_valid_point_threshold() -> None:
+    runner = MeasurementRunner(
+        controller=ControllerService(StubControllerBackend()),
+        capture_factory=lambda: FakeCapture(),
+        estimator_factory=lambda: FakeEstimator(),
+        motion_sampler=FakeSampler(valid_frames=0),
+        sleep=lambda *_: None,
+    )
+
+    with pytest.raises(DomainError) as exc:
+        runner.run(
+            ProbeConfig(point_count=5, repeats=1),
+            threading.Event(),
+            lambda event: None,
+            roi=RoiRect(0, 0, 100, 100),
+        )
+
+    assert exc.value.code == "MEASUREMENT_QUALITY_LOW"

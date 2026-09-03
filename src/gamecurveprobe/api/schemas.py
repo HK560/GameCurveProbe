@@ -8,6 +8,7 @@ from gamecurveprobe.models import (
     CaptureInfo,
     JobSnapshot,
     JobState,
+    NoiseResult,
     ProbeConfig,
     RangeMode,
     RoiQuality,
@@ -97,6 +98,7 @@ class SessionResponse(BaseModel):
     last_job: JobSnapshot | None = None
     active_job: JobSnapshot | None = None
     last_result: SessionResult | None = None
+    noise: NoiseResult | None = None
 
 
 class ErrorDetail(BaseModel):

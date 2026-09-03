@@ -31,18 +31,24 @@ class IdleNoiseRunner:
         config: ProbeConfig,
         cancel_event: threading.Event,
         publish: Callable[[Mapping[str, object]], None],
+        *,
+        roi: RoiRect | None = None,
     ) -> NoiseResult:
         if cancel_event.is_set():
             raise JobCanceled()
 
         capture = self._capture_factory()
         estimator = self._estimator_factory()
-        roi = self._roi or RoiRect(0, 0, 100, 100)
+        selected_roi = roi or self._roi
+        if selected_roi is None:
+            from gamecurveprobe.errors import DomainError
+
+            raise DomainError("ROI_REQUIRED", "Select an ROI before measuring idle noise.")
 
         sample = self._sampler.sample_noise_floor(
             capture,
             estimator,
-            roi,
+            selected_roi,
             1200,
             min_tracked_points=MIN_TRACKED_POINTS,
             min_confidence=MIN_TRACKING_CONFIDENCE,

@@ -24,7 +24,17 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../src/gamecurveprobe/web_dist',
+    outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/echarts/')) {
+            return 'charts'
+          }
+          if (id.includes('/node_modules/zrender/')) return 'renderer'
+        },
+      },
+    },
   },
 })

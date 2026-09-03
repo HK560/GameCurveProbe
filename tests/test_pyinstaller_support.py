@@ -29,3 +29,13 @@ def test_collect_package_files_keeps_vgamepad_client_dll_layout() -> None:
         and target == "vgamepad/win/vigem/client/x86"
         for source, target in normalized
     )
+
+
+def test_spec_collects_wgc_native_files_and_web_assets() -> None:
+    text = (Path(__file__).resolve().parents[1] / "GameCurveProbe.spec").read_text(encoding="utf-8")
+    normalized = text.replace("\\", "/")
+
+    assert 'collect_package_files("windows_capture"' in text
+    assert '"**/*.dll"' in text
+    assert '"**/*.pyd"' in text
+    assert "gamecurveprobe/web_dist" in normalized

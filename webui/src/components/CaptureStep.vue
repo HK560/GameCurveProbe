@@ -1,21 +1,40 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useSessionStore } from '../stores/session'
 import RoiSelector from './RoiSelector.vue'
 import QualityBadge from './QualityBadge.vue'
 import { RefreshCw, Play, ArrowRight, Settings2, ShieldAlert } from 'lucide-vue-next'
 import type { RoiRect } from '../types/api'
+import { captureErrorMessage, captureModeInfo, type CaptureMode } from '../services/captureModes'
 
 const sessionStore = useSessionStore()
 
 const selectedWindowId = ref<number | null>(null)
-const selectedBackend = ref<'auto' | 'wgc' | 'dxcam'>('auto')
+const selectedBackend = ref<CaptureMode>('auto')
 const selectedFps = ref<number>(120)
 const errorMessage = ref<string | null>(null)
 
 const isAttached = computed(() => !!sessionStore.capture)
 const captureInfo = computed(() => sessionStore.capture)
 const roiQuality = computed(() => sessionStore.roiQuality)
+const modeInfo = computed(() => captureModeInfo(selectedBackend.value))
+const healthErrorMessage = computed(() => {
+  const code = sessionStore.captureHealth?.last_error
+  return code ? captureErrorMessage({ code }) : null
+})
+let healthTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  healthTimer = setInterval(() => {
+    if (sessionStore.capture) {
+      sessionStore.refreshCaptureHealth().catch(() => undefined)
+    }
+  }, 500)
+})
+
+onUnmounted(() => {
+  if (healthTimer !== null) clearInterval(healthTimer)
+})
 
 watch(
   () => sessionStore.capture,
@@ -41,7 +60,7 @@ async function handleAttach() {
   try {
     await sessionStore.attachCapture(selectedWindowId.value, selectedBackend.value, selectedFps.value)
   } catch (err: any) {
-    errorMessage.value = err.message || '抓取窗口失败，请确认窗口未最小化且支持截屏'
+    errorMessage.value = captureErrorMessage(err)
   }
 }
 
@@ -96,9 +115,9 @@ function proceedToDeadzone() {
           v-model="selectedBackend"
           class="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"
         >
-          <option value="auto">Auto 智能推荐 (优先WGC)</option>
-          <option value="wgc">Windows Graphics Capture (WGC)</option>
-          <option value="dxcam">DXGI Desktop Duplication</option>
+          <option value="auto">Auto（WGC 独立窗口捕获）</option>
+          <option value="wgc">Windows Graphics Capture（WGC）</option>
+          <option value="dxcam">屏幕区域兼容模式（DXGI）</option>
         </select>
       </div>
 
@@ -130,10 +149,18 @@ function proceedToDeadzone() {
       </div>
     </div>
 
+    <div
+      v-if="modeInfo.warning"
+      class="p-3.5 rounded-xl bg-amber-950/50 border border-amber-500/50 text-amber-200 text-xs flex items-center space-x-2"
+    >
+      <ShieldAlert class="w-4 h-4 shrink-0 text-amber-400" />
+      <span>{{ modeInfo.warning }}</span>
+    </div>
+
     <!-- Error Alert -->
-    <div v-if="errorMessage" class="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 text-xs flex items-center space-x-2">
+    <div v-if="errorMessage || healthErrorMessage" class="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 text-xs flex items-center space-x-2">
       <ShieldAlert class="w-4 h-4 shrink-0 text-rose-400" />
-      <span>{{ errorMessage }}</span>
+      <span>{{ errorMessage || healthErrorMessage }}</span>
     </div>
 
     <!-- Main Viewport and ROI Assessment Grid -->

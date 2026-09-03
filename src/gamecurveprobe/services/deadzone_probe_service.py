@@ -52,10 +52,15 @@ class DeadzoneProbeService:
             raise DomainError("INVALID_OUTPUT", "initial_output must be within [0, 1].")
 
         with self._lock:
-            self._cancel.clear()
-            self._controller.neutralize()
-            if not self._controller.set_right_stick(initial_output, 0.0, self._cancel):
-                raise DomainError("PROBE_START_FAILED", "Failed to engage controller stick.")
+            self._controller.acquire("deadzone_probe")
+            try:
+                self._cancel.clear()
+                self._controller.neutralize()
+                if not self._controller.set_right_stick(initial_output, 0.0, self._cancel):
+                    raise DomainError("PROBE_START_FAILED", "Failed to engage controller stick.")
+            except Exception:
+                self._controller.release("deadzone_probe")
+                raise
             self._active = True
             self._output = initial_output
             self._step = step
@@ -79,6 +84,7 @@ class DeadzoneProbeService:
                 self._active = False
                 self._output = 0.0
                 self._deadline = 0.0
+                self._controller.release("deadzone_probe")
             return self.snapshot()
 
     def expire_if_needed(self) -> bool:

@@ -18,6 +18,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const importMessage = ref<string | null>(null)
 
 const result = computed(() => sessionStore.lastResult)
+const importedResult = computed(() => sessionStore.importedResult)
 const points = computed(() => result.value?.points || [])
 const analysis = computed(() => result.value?.analysis)
 const noise = computed(() => result.value?.noise)
@@ -196,6 +197,7 @@ function restartProbe() {
       <div v-if="points.length > 0">
         <CurveChart
           :points="points"
+          :imported-points="importedResult?.points ?? []"
           :inner-deadzone="sessionStore.config?.inner_deadzone"
           :outer-deadzone="sessionStore.config?.outer_deadzone"
         />
