@@ -28,6 +28,23 @@ def _verify_ws_auth(websocket: WebSocket, context: AppContext) -> bool:
     return True
 
 
+from dataclasses import asdict, is_dataclass
+from enum import Enum
+
+def to_dict(obj: Any) -> Any:
+    if obj is None:
+        return None
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return asdict(obj)
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, dict):
+        return {k: to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [to_dict(v) for v in obj]
+    return obj
+
+
 @ws_router.websocket("/events")
 async def ws_events(websocket: WebSocket) -> None:
     context: AppContext = websocket.app.state.context
@@ -46,15 +63,7 @@ async def ws_events(websocket: WebSocket) -> None:
             "type": "session_sync",
             "timestamp": "",
             "payload": {
-                "session": {
-                    "id": snapshot.id,
-                    "config": snapshot.config.__dict__ if hasattr(snapshot.config, "__dict__") else {},
-                    "roi": snapshot.roi.__dict__ if snapshot.roi and hasattr(snapshot.roi, "__dict__") else None,
-                    "capture": snapshot.capture.__dict__ if snapshot.capture and hasattr(snapshot.capture, "__dict__") else None,
-                    "roi_quality": snapshot.roi_quality.__dict__ if snapshot.roi_quality and hasattr(snapshot.roi_quality, "__dict__") else None,
-                    "last_job": snapshot.last_job.__dict__ if snapshot.last_job and hasattr(snapshot.last_job, "__dict__") else None,
-                    "active_job": snapshot.active_job.__dict__ if snapshot.active_job and hasattr(snapshot.active_job, "__dict__") else None,
-                }
+                "session": to_dict(snapshot),
             },
         }
         await websocket.send_text(json.dumps(initial_event, default=str))
@@ -66,7 +75,7 @@ async def ws_events(websocket: WebSocket) -> None:
                     "seq": envelope.seq,
                     "type": envelope.type,
                     "timestamp": envelope.timestamp,
-                    "payload": envelope.payload,
+                    "payload": to_dict(envelope.payload),
                     "job_id": envelope.job_id,
                 }
                 await websocket.send_text(json.dumps(msg, default=str))

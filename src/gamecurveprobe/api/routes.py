@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -58,8 +59,9 @@ def list_windows(context: AppContext = Depends(get_context)) -> dict[str, Any]:
 def attach_capture(req: CaptureAttachRequest, context: AppContext = Depends(get_context)) -> dict[str, Any]:
     info = context.capture.attach(req.window_id, requested=req.backend, fps=req.target_fps)
     context.session.update_capture(info)
-    context.events.publish("capture_changed", {"capture": info})
-    return {"capture": info}
+    info_dict = asdict(info)
+    context.events.publish("capture_changed", {"capture": info_dict})
+    return {"capture": info_dict}
 
 
 @router.get("/capture/health", dependencies=[Depends(verify_origin), Depends(require_token)])

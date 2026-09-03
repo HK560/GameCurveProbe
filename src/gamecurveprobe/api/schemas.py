@@ -76,6 +76,7 @@ class WindowsListResponse(BaseModel):
 
 
 class JobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     kind: str
     state: JobState
@@ -87,6 +88,7 @@ class JobResponse(BaseModel):
 
 
 class SessionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     config: ProbeConfig
     roi: RoiRect | None = None

@@ -41,9 +41,12 @@ def main() -> None:
     controller_backend = StubControllerBackend()
     controller = ControllerService(controller_backend)
     capture_backend = StubCaptureBackend(width=1920, height=1080)
-    capture = CaptureService({"wgc": capture_backend, "dxcam": capture_backend})
-    session = SessionService()
     events = EventHub()
+    capture = CaptureService(
+        {"wgc": capture_backend, "dxcam": capture_backend},
+        preview_callback=events.publish_preview,
+    )
+    session = SessionService()
     jobs = JobManager(publish=lambda ev: events.publish("job_event", ev))
     windows = MockWindowService()
     probe = DeadzoneProbeService(controller)

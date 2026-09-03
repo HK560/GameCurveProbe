@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { api } from '../services/api'
 import { ws } from '../services/ws'
 import type {
+  CaptureInfo,
   JobSnapshot,
   ProbeConfig,
   ProbeSnapshot,
@@ -26,11 +27,12 @@ export const useSessionStore = defineStore('session', () => {
   const internalActiveJob = ref<JobSnapshot | null>(null)
   const internalLastJob = ref<JobSnapshot | null>(null)
   const internalLastResult = ref<SessionResult | null>(null)
+  const internalCapture = ref<CaptureInfo | null>(null)
 
   const activeJob = computed(() => internalActiveJob.value ?? session.value?.active_job ?? null)
   const lastJob = computed(() => internalLastJob.value ?? session.value?.last_job ?? null)
   const lastResult = computed(() => internalLastResult.value ?? session.value?.last_result ?? null)
-  const capture = computed(() => session.value?.capture ?? null)
+  const capture = computed(() => internalCapture.value ?? session.value?.capture ?? null)
   const config = computed(() => session.value?.config ?? null)
   const roi = computed(() => session.value?.roi ?? null)
   const roiQuality = computed(() => session.value?.roi_quality ?? null)
@@ -39,6 +41,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       session.value = await api.getSession()
       if (session.value) {
+        internalCapture.value = session.value.capture ?? null
         internalActiveJob.value = session.value.active_job ?? null
         internalLastJob.value = session.value.last_job ?? null
         internalLastResult.value = session.value.last_result ?? null
@@ -61,6 +64,7 @@ export const useSessionStore = defineStore('session', () => {
     isAttaching.value = true
     try {
       const cap = await api.attachCapture(windowId, backend, targetFps)
+      internalCapture.value = cap
       if (session.value) {
         session.value.capture = cap
       }
@@ -133,6 +137,9 @@ export const useSessionStore = defineStore('session', () => {
   function handleWsEvent(event: { type: string; payload: any; job_id?: string }) {
     if (event.type === 'session_sync' && event.payload?.session) {
       session.value = event.payload.session
+      if (event.payload.session.capture) {
+        internalCapture.value = event.payload.session.capture
+      }
       internalActiveJob.value = event.payload.session.active_job ?? null
       internalLastJob.value = event.payload.session.last_job ?? null
       internalLastResult.value = event.payload.session.last_result ?? null
@@ -169,6 +176,7 @@ export const useSessionStore = defineStore('session', () => {
         session.value.active_job = null
       }
     } else if (event.type === 'capture_changed' && event.payload?.capture) {
+      internalCapture.value = event.payload.capture
       if (session.value) {
         session.value.capture = event.payload.capture
       }
