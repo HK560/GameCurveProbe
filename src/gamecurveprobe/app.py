@@ -144,9 +144,57 @@ def build_context(
             jobs.cancel_active()
             audio.play_sound("stop", session.config_snapshot().sound_enabled)
 
+    def adjust_deadzone_via_hotkey(direction: int) -> None:
+        cfg = session.config_snapshot()
+        if not cfg.hotkey_enabled:
+            return
+        target = cfg.dz_target or "inner"
+        step = cfg.dz_step or 0.005
+        delta = direction * step
+
+        if controller.is_enabled():
+            try:
+                controller.wake(cfg.wake_input, duration_seconds=0.5)
+            except Exception:
+                pass
+
+        if target == "inner":
+            new_val = round(max(0.0, min(cfg.outer_deadzone - 0.01, cfg.inner_deadzone + delta)), 4)
+            session.update_config({"inner_deadzone": new_val})
+            if probe.snapshot().active:
+                probe.update(new_val)
+        else:
+            new_val = round(max(cfg.inner_deadzone + 0.01, min(1.0, cfg.outer_deadzone + delta)), 4)
+            session.update_config({"outer_deadzone": new_val})
+            if probe.snapshot().active:
+                probe.update(new_val)
+
+        if audio is not None:
+            audio.play_sound("test", cfg.sound_enabled)
+
+        events.publish("config_updated", {"config": session.config_snapshot()})
+        events.publish("deadzone_probe_updated", {"probe": probe.snapshot()})
+
+    def on_dz_inc_hotkey() -> None:
+        adjust_deadzone_via_hotkey(1)
+
+    def on_dz_dec_hotkey() -> None:
+        adjust_deadzone_via_hotkey(-1)
+
     cfg = session.config_snapshot()
-    hotkey = HotkeyService(on_start=on_start_hotkey, on_stop=on_stop_hotkey)
-    hotkey.start(enabled=cfg.hotkey_enabled, start_key=cfg.hotkey_start, stop_key=cfg.hotkey_stop)
+    hotkey = HotkeyService(
+        on_start=on_start_hotkey,
+        on_stop=on_stop_hotkey,
+        on_dz_inc=on_dz_inc_hotkey,
+        on_dz_dec=on_dz_dec_hotkey,
+    )
+    hotkey.start(
+        enabled=cfg.hotkey_enabled,
+        start_key=cfg.hotkey_start,
+        stop_key=cfg.hotkey_stop,
+        dz_inc_key=cfg.hotkey_dz_inc,
+        dz_dec_key=cfg.hotkey_dz_dec,
+    )
 
     allowed_origins = frozenset({
         f"http://{host}:{port}",

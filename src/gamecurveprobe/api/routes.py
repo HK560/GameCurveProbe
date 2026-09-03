@@ -128,7 +128,13 @@ def update_config(req: ConfigUpdateRequest, context: AppContext = Depends(get_co
     context.session.update_config(payload)
     cfg = context.session.config_snapshot()
     if context.hotkey is not None:
-        context.hotkey.update_config(cfg.hotkey_enabled, cfg.hotkey_start, cfg.hotkey_stop)
+        context.hotkey.update_config(
+            cfg.hotkey_enabled,
+            cfg.hotkey_start,
+            cfg.hotkey_stop,
+            cfg.hotkey_dz_inc,
+            cfg.hotkey_dz_dec,
+        )
     if context.audio is not None:
         context.audio.enabled = cfg.sound_enabled
     context.events.publish("config_updated", {"config": cfg})

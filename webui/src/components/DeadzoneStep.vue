@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { createProbeLease } from '../services/probeLease'
 import DeadzoneRangeSlider from './DeadzoneRangeSlider.vue'
@@ -13,6 +13,8 @@ import {
   Radio
 } from 'lucide-vue-next'
 import type { RangeMode } from '../types/api'
+
+import { api } from '../services/api'
 
 const sessionStore = useSessionStore()
 
@@ -28,6 +30,17 @@ const innerDeadzone = computed(() => config.value?.inner_deadzone ?? 0.05)
 const outerDeadzone = computed(() => config.value?.outer_deadzone ?? 0.95)
 const pointCount = computed(() => config.value?.point_count ?? 17)
 const rangeMode = computed<RangeMode>(() => config.value?.range_mode ?? 'active_range')
+
+watch(
+  config,
+  (cfg) => {
+    if (cfg) {
+      if (cfg.dz_target) activeProbeTarget.value = cfg.dz_target
+      if (cfg.dz_step) currentStep.value = cfg.dz_step
+    }
+  },
+  { immediate: true }
+)
 
 const currentProbeOutput = computed(() => {
   return activeProbeTarget.value === 'inner' ? innerDeadzone.value : outerDeadzone.value
@@ -50,13 +63,30 @@ async function toggleProbe() {
 
 async function selectProbeTarget(target: 'inner' | 'outer') {
   activeProbeTarget.value = target
+  await sessionStore.updateConfig({ dz_target: target })
   if (probeActive.value) {
     const output = target === 'inner' ? innerDeadzone.value : outerDeadzone.value
     await sessionStore.updateDeadzoneProbe(output)
   }
 }
 
+async function setStep(step: number) {
+  currentStep.value = step
+  await sessionStore.updateConfig({ dz_step: step })
+}
+
+async function autoWakeIfNeeded() {
+  if (config.value?.auto_wake !== false) {
+    try {
+      await api.wakeController(config.value?.wake_input || 'right_stick')
+    } catch {
+      // ignore
+    }
+  }
+}
+
 async function onInnerUpdate(val: number) {
+  await autoWakeIfNeeded()
   await sessionStore.updateConfig({ inner_deadzone: val })
   if (probeActive.value && activeProbeTarget.value === 'inner') {
     await sessionStore.updateDeadzoneProbe(val)
@@ -64,6 +94,7 @@ async function onInnerUpdate(val: number) {
 }
 
 async function onOuterUpdate(val: number) {
+  await autoWakeIfNeeded()
   await sessionStore.updateConfig({ outer_deadzone: val })
   if (probeActive.value && activeProbeTarget.value === 'outer') {
     await sessionStore.updateDeadzoneProbe(val)
@@ -193,7 +224,7 @@ function proceedToMeasurement() {
               v-for="step in [0.001, 0.005, 0.01]"
               :key="step"
               type="button"
-              @click="currentStep = step"
+              @click="setStep(step)"
               class="py-1 px-2.5 rounded-lg text-xs font-mono font-medium transition cursor-pointer text-center"
               :class="[
                 currentStep === step

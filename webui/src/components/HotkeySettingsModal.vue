@@ -18,6 +18,8 @@ const sessionStore = useSessionStore()
 const hotkeyEnabled = ref(true)
 const hotkeyStart = ref('F9')
 const hotkeyStop = ref('F10')
+const hotkeyDzInc = ref('F7')
+const hotkeyDzDec = ref('F6')
 const soundEnabled = ref(true)
 const autoWake = ref(true)
 const wakeInput = ref('right_stick')
@@ -45,6 +47,21 @@ const stopKeyOptions = [
   { label: 'NumPad 0', value: 'NUMPAD0' },
 ]
 
+const dzIncOptions = [
+  { label: 'F7 (默认)', value: 'F7' },
+  { label: 'F8', value: 'F8' },
+  { label: 'PageUp', value: 'PAGEUP' },
+  { label: 'Shift + F7', value: 'Shift+F7' },
+  { label: 'Ctrl + Alt + Up', value: 'Ctrl+Alt+S' },
+]
+
+const dzDecOptions = [
+  { label: 'F6 (默认)', value: 'F6' },
+  { label: 'F5', value: 'F5' },
+  { label: 'PageDown', value: 'PAGEDOWN' },
+  { label: 'Shift + F6', value: 'Shift+F6' },
+]
+
 watch(
   () => props.show,
   (newVal) => {
@@ -52,6 +69,8 @@ watch(
       hotkeyEnabled.value = sessionStore.config.hotkey_enabled ?? true
       hotkeyStart.value = sessionStore.config.hotkey_start || 'F9'
       hotkeyStop.value = sessionStore.config.hotkey_stop || 'F10'
+      hotkeyDzInc.value = sessionStore.config.hotkey_dz_inc || 'F7'
+      hotkeyDzDec.value = sessionStore.config.hotkey_dz_dec || 'F6'
       soundEnabled.value = sessionStore.config.sound_enabled ?? true
       autoWake.value = sessionStore.config.auto_wake ?? true
       wakeInput.value = sessionStore.config.wake_input || 'right_stick'
@@ -68,6 +87,8 @@ async function saveSettings() {
       hotkey_enabled: hotkeyEnabled.value,
       hotkey_start: hotkeyStart.value,
       hotkey_stop: hotkeyStop.value,
+      hotkey_dz_inc: hotkeyDzInc.value,
+      hotkey_dz_dec: hotkeyDzDec.value,
       sound_enabled: soundEnabled.value,
       auto_wake: autoWake.value,
       wake_input: wakeInput.value,
@@ -157,6 +178,30 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
                 class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
               >
                 <option v-for="opt in stopKeyOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-medium text-neutral-600">死区微调加值快捷键 (+)</label>
+              <select
+                v-model="hotkeyDzInc"
+                class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
+              >
+                <option v-for="opt in dzIncOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-medium text-neutral-600">死区微调减值快捷键 (-)</label>
+              <select
+                v-model="hotkeyDzDec"
+                class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
+              >
+                <option v-for="opt in dzDecOptions" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
                 </option>
               </select>

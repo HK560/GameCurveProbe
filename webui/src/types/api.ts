@@ -21,6 +21,10 @@ export interface ProbeConfig {
   hotkey_enabled?: boolean
   hotkey_start?: string
   hotkey_stop?: string
+  hotkey_dz_inc?: string
+  hotkey_dz_dec?: string
+  dz_target?: 'inner' | 'outer'
+  dz_step?: number
   sound_enabled?: boolean
   wake_input?: string
   auto_wake?: boolean
