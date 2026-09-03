@@ -1,21 +1,31 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
-from uuid import uuid4
+
+from gamecurveprobe.constants import PRESETS
+from gamecurveprobe.errors import DomainError
+
+
+class RangeMode(StrEnum):
+    ACTIVE_RANGE = "active_range"
+    FULL = "full"
 
 
 class JobState(StrEnum):
-    IDLE = "idle"
-    READY = "ready"
-    CALIBRATING = "calibrating"
-    RUNNING_STEADY = "running_steady"
-    RUNNING_DYNAMIC = "running_dynamic"
+    QUEUED = "queued"
+    RUNNING = "running"
+    CANCELING = "canceling"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELED = "canceled"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self in {self.COMPLETED, self.FAILED, self.CANCELED}
 
 
 @dataclass(slots=True)
@@ -42,143 +52,124 @@ class RoiRect:
 
 
 @dataclass(slots=True)
-class ProbeSessionConfig:
-    window_id: int | None = None
+class ProbeConfig:
     capture_fps: int = 120
-    roi: RoiRect | None = None
-    axes: list[str] = field(default_factory=lambda: ["x"])
-    point_count_per_half_axis: int = 17
-    settle_ms: int = 300
-    steady_sample_ms: int = 700
-    yaw360_timeout_ms: int = 4000
+    point_count: int = 17
     repeats: int = 2
-    dynamic_enabled: bool = True
-    step_levels: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75, 1.0])
-    ramp_ms: int = 250
-    inner_deadzone_marker: float = 0.0
-    outer_saturation_marker: float = 1.0
-    live_smoothing_factor: float = 0.65
-    motion_min_tracked_points: int = 8
-    motion_min_confidence: float = 0.35
-    idle_noise_sample_ms: int = 1200
-    idle_noise_floor_x: float = 0.0
-    idle_noise_floor_y: float = 0.0
-    idle_noise_band_percentile: float = 0.9
-    push_live_preview_during_run: bool = False
+    settle_ms: int = 300
+    sample_ms: int = 700
+    range_mode: RangeMode = RangeMode.ACTIVE_RANGE
+    inner_deadzone: float = 0.0
+    outer_deadzone: float = 1.0
 
     @classmethod
-    def from_payload(cls, payload: dict[str, Any] | None) -> "ProbeSessionConfig":
-        payload = payload or {}
-        roi_payload = payload.get("roi")
-        roi = RoiRect(**roi_payload) if roi_payload else None
-        legacy_sample_ms = payload.get("sample_ms")
-        return cls(
-            window_id=payload.get("window_id"),
-            capture_fps=payload.get("capture_fps", 120),
-            roi=roi,
-            axes=list(payload.get("axes", ["x"])),
-            point_count_per_half_axis=payload.get("point_count_per_half_axis", 17),
-            settle_ms=payload.get("settle_ms", 300),
-            steady_sample_ms=payload.get("steady_sample_ms", legacy_sample_ms if legacy_sample_ms is not None else 700),
-            yaw360_timeout_ms=payload.get(
-                "yaw360_timeout_ms", legacy_sample_ms if legacy_sample_ms is not None else 4000
-            ),
-            repeats=payload.get("repeats", 2),
-            dynamic_enabled=payload.get("dynamic_enabled", True),
-            step_levels=list(payload.get("step_levels", [0.25, 0.5, 0.75, 1.0])),
-            ramp_ms=payload.get("ramp_ms", 250),
-            inner_deadzone_marker=payload.get("inner_deadzone_marker", 0.0),
-            outer_saturation_marker=payload.get("outer_saturation_marker", 1.0),
-            live_smoothing_factor=payload.get("live_smoothing_factor", 0.65),
-            motion_min_tracked_points=payload.get("motion_min_tracked_points", 8),
-            motion_min_confidence=payload.get("motion_min_confidence", 0.35),
-            idle_noise_sample_ms=payload.get("idle_noise_sample_ms", 1200),
-            idle_noise_floor_x=payload.get("idle_noise_floor_x", 0.0),
-            idle_noise_floor_y=payload.get("idle_noise_floor_y", 0.0),
-            idle_noise_band_percentile=payload.get("idle_noise_band_percentile", 0.9),
-            push_live_preview_during_run=payload.get("push_live_preview_during_run", False),
+    def from_preset(cls, name: str) -> "ProbeConfig":
+        try:
+            return cls(**PRESETS[name])
+        except KeyError as exc:
+            raise DomainError("INVALID_PRESET", f"Unknown preset: {name}") from exc
+
+    def validate(self) -> None:
+        if not 30 <= self.capture_fps <= 240:
+            raise DomainError("INVALID_CONFIG", "capture_fps must be within [30, 240].")
+        if self.point_count < 5 or self.repeats < 1 or self.settle_ms < 0 or self.sample_ms <= 0:
+            raise DomainError("INVALID_CONFIG", "Measurement timing and count values are invalid.")
+        if not 0.0 <= self.inner_deadzone < self.outer_deadzone <= 1.0:
+            raise DomainError("INVALID_CONFIG", "outer_deadzone must be greater than inner_deadzone within [0, 1].")
+
+    def point_values(self) -> list[float]:
+        start, end = (
+            (0.0, 1.0) if self.range_mode is RangeMode.FULL else (self.inner_deadzone, self.outer_deadzone)
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        data = asdict(self)
-        if self.roi is not None:
-            data["roi"] = self.roi.to_dict()
-        return data
-
-
-@dataclass(slots=True)
-class CurvePoint:
-    axis: str
-    direction: str
-    input_value: float
-    px_per_sec: float
-    normalized_speed: float
-    deg_per_sec: float | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        values = {
+            round(start + (end - start) * i / (self.point_count - 1), 4)
+            for i in range(self.point_count)
+        }
+        if self.range_mode is RangeMode.FULL:
+            values.update({self.inner_deadzone, self.outer_deadzone})
+        return sorted(values)
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
+class CaptureInfo:
+    window_id: int
+    backend: str
+    width: int
+    height: int
+    target_fps: int
+    attached_at: str = ""
+    title: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class CaptureHealth:
+    is_healthy: bool
+    fps: float
+    duplicate_ratio: float
+    last_error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementPoint:
+    input: float
+    velocity_px_s: float | None
+    normalized_speed: float | None
+    stability: float
+    valid: bool
+    attempts: int
+
+
+@dataclass(frozen=True, slots=True)
+class NoiseResult:
+    floor_x: float
+    floor_y: float
+    valid_frames: int
+    confidence: float
+
+
+@dataclass(frozen=True, slots=True)
+class RoiQuality:
+    score: int
+    level: str
+    metrics: Mapping[str, float]
+    suggestions: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CurveAnalysis:
+    curve_type: str
+    confidence: float
+    metrics: Mapping[str, float] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class SessionResult:
-    x_curve: list[CurvePoint] = field(default_factory=list)
-    y_curve: list[CurvePoint] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)
-    yaw_deg_per_px: float | None = None
-    measurement_kind: str | None = None
-    summary: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "x_curve": [point.to_dict() for point in self.x_curve],
-            "y_curve": [point.to_dict() for point in self.y_curve],
-            "notes": self.notes,
-            "yaw_deg_per_px": self.yaw_deg_per_px,
-            "measurement_kind": self.measurement_kind,
-            "summary": self.summary,
-            "metadata": self.metadata,
-        }
+    points: tuple[MeasurementPoint, ...] = ()
+    noise: NoiseResult | None = None
+    analysis: CurveAnalysis | None = None
+    schema_version: int = 1
+    measured_at: str = ""
 
 
-@dataclass(slots=True)
-class SessionStatus:
-    session_id: str
-    state: JobState = JobState.IDLE
-    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    message: str = "Waiting for configuration."
-
-    def touch(self, state: JobState | None = None, message: str | None = None) -> None:
-        self.updated_at = datetime.now(UTC).isoformat()
-        if state is not None:
-            self.state = state
-        if message is not None:
-            self.message = message
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "session_id": self.session_id,
-            "state": self.state.value,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "message": self.message,
-        }
+@dataclass(frozen=True, slots=True)
+class JobSnapshot:
+    id: str
+    kind: str
+    state: JobState
+    progress: Mapping[str, object] | None = None
+    result: object | None = None
+    error: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
 
 
-@dataclass(slots=True)
-class ProbeSession:
-    config: ProbeSessionConfig = field(default_factory=ProbeSessionConfig)
-    status: SessionStatus = field(default_factory=lambda: SessionStatus(session_id=new_session_id()))
-    result: SessionResult = field(default_factory=SessionResult)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "config": self.config.to_dict(),
-            "status": self.status.to_dict(),
-            "result": self.result.to_dict(),
-        }
-
-
-def new_session_id() -> str:
-    return uuid4().hex[:10]
+@dataclass(frozen=True, slots=True)
+class SessionSnapshot:
+    id: str
+    config: ProbeConfig
+    roi: RoiRect | None = None
+    capture: CaptureInfo | None = None
+    roi_quality: RoiQuality | None = None
+    last_job: JobSnapshot | None = None
+    active_job: JobSnapshot | None = None
+    last_result: SessionResult | None = None
