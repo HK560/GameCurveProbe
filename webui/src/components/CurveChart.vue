@@ -32,11 +32,12 @@ function updateChart() {
       xAxis: props.innerDeadzone,
       label: {
         formatter: `内死区: ${(props.innerDeadzone * 100).toFixed(1)}%`,
-        color: '#f59e0b',
+        color: '#525252',
+        fontSize: 10,
         position: 'insideEndTop',
       },
       lineStyle: {
-        color: '#f59e0b',
+        color: '#737373',
         type: 'dashed',
         width: 1.5,
       },
@@ -47,11 +48,12 @@ function updateChart() {
       xAxis: props.outerDeadzone,
       label: {
         formatter: `外死区: ${(props.outerDeadzone * 100).toFixed(1)}%`,
-        color: '#a855f7',
+        color: '#525252',
+        fontSize: 10,
         position: 'insideEndTop',
       },
       lineStyle: {
-        color: '#a855f7',
+        color: '#525252',
         type: 'dashed',
         width: 1.5,
       },
@@ -62,23 +64,25 @@ function updateChart() {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(15, 23, 42, 0.95)',
-      borderColor: '#334155',
-      textStyle: { color: '#f8fafc', fontSize: 12 },
+      backgroundColor: '#ffffff',
+      borderColor: '#e5e7eb',
+      borderWidth: 1,
+      extraCssText: 'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); border-radius: 8px;',
+      textStyle: { color: '#171717', fontSize: 12 },
       formatter: (params: any) => {
         if (!params || params.length === 0) return ''
         const xVal = params[0].value[0]
         const pt = props.points.find((p) => Math.abs(p.input - xVal) < 1e-4)
-        let html = `<div class="font-bold text-slate-200 mb-1">摇杆推杆量: ${(xVal * 100).toFixed(1)}% (${xVal.toFixed(3)})</div>`
+        let html = `<div class="font-medium text-neutral-900 mb-1 border-b border-neutral-100 pb-1">推杆行程: ${(xVal * 100).toFixed(1)}% (${xVal.toFixed(3)})</div>`
         if (pt) {
           if (pt.valid && pt.velocity_px_s !== null) {
-            html += `<div class="flex justify-between space-x-4"><span class="text-indigo-400">测定速度:</span> <span class="font-mono font-bold">${pt.velocity_px_s} px/s</span></div>`
+            html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-500">测定速度:</span> <span class="font-mono font-medium text-neutral-900">${pt.velocity_px_s} px/s</span></div>`
             if (pt.normalized_speed !== null) {
-              html += `<div class="flex justify-between space-x-4"><span class="text-emerald-400">归一化比例:</span> <span class="font-mono">${(pt.normalized_speed * 100).toFixed(1)}%</span></div>`
+              html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-500">归一化比例:</span> <span class="font-mono text-neutral-900">${(pt.normalized_speed * 100).toFixed(1)}%</span></div>`
             }
-            html += `<div class="flex justify-between space-x-4"><span class="text-slate-400">稳定性评分:</span> <span class="font-mono">${Math.round(pt.stability * 100)}%</span></div>`
+            html += `<div class="flex justify-between space-x-4 text-xs"><span class="text-neutral-400">稳定性评分:</span> <span class="font-mono text-neutral-600">${Math.round(pt.stability * 100)}%</span></div>`
           } else {
-            html += `<div class="text-rose-400 font-semibold">该点追踪无效 (特征丢失或环境扰动)</div>`
+            html += `<div class="text-neutral-500 text-xs font-medium">该点追踪无效 (特征丢失或微动不足)</div>`
           }
         }
         return html
@@ -86,7 +90,7 @@ function updateChart() {
     },
     legend: {
       data: [...velocitySeries.map((series) => series.name), '归一化响应'],
-      textStyle: { color: '#94a3b8' },
+      textStyle: { color: '#737373', fontSize: 11 },
       top: 0,
       right: 16,
     },
@@ -94,7 +98,7 @@ function updateChart() {
       left: '3%',
       right: '4%',
       bottom: '8%',
-      top: '12%',
+      top: '14%',
       containLabel: true,
     },
     xAxis: {
@@ -104,23 +108,24 @@ function updateChart() {
       name: '推杆行程',
       nameLocation: 'middle',
       nameGap: 24,
-      nameTextStyle: { color: '#64748b', fontSize: 11 },
+      nameTextStyle: { color: '#737373', fontSize: 11 },
       axisLabel: {
-        color: '#94a3b8',
+        color: '#737373',
+        fontSize: 10,
         formatter: (val: number) => `${Math.round(val * 100)}%`,
       },
-      splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.4)', type: 'dashed' } },
-      axisLine: { lineStyle: { color: '#475569' } },
+      splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
     yAxis: [
       {
         type: 'value',
         name: '速度 (px/s)',
         position: 'left',
-        nameTextStyle: { color: '#818cf8', fontSize: 11 },
-        axisLabel: { color: '#818cf8' },
-        splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
-        axisLine: { lineStyle: { color: '#475569' } },
+        nameTextStyle: { color: '#171717', fontSize: 11 },
+        axisLabel: { color: '#737373', fontSize: 10 },
+        splitLine: { lineStyle: { color: '#f0f0f0' } },
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
       },
       {
         type: 'value',
@@ -128,13 +133,14 @@ function updateChart() {
         min: 0,
         max: 1,
         position: 'right',
-        nameTextStyle: { color: '#34d399', fontSize: 11 },
+        nameTextStyle: { color: '#737373', fontSize: 11 },
         axisLabel: {
-          color: '#34d399',
+          color: '#737373',
+          fontSize: 10,
           formatter: (val: number) => `${Math.round(val * 100)}%`,
         },
         splitLine: { show: false },
-        axisLine: { lineStyle: { color: '#475569' } },
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
       },
     ],
     series: [
@@ -145,13 +151,13 @@ function updateChart() {
         data: series.data,
         smooth: 0.2,
         showSymbol: true,
-        symbolSize: 6,
-        itemStyle: { color: series.imported ? '#f59e0b' : '#6366f1' },
-        lineStyle: { width: series.imported ? 2 : 3, type: series.imported ? 'dashed' : 'solid', color: series.imported ? '#f59e0b' : '#6366f1' },
+        symbolSize: 5,
+        itemStyle: { color: series.imported ? '#737373' : '#171717' },
+        lineStyle: { width: series.imported ? 2 : 2.5, type: series.imported ? 'dashed' : 'solid', color: series.imported ? '#737373' : '#171717' },
         areaStyle: series.imported ? undefined : {
           color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(99, 102, 241, 0.35)' },
-            { offset: 1, color: 'rgba(99, 102, 241, 0.0)' },
+            { offset: 0, color: 'rgba(0, 0, 0, 0.05)' },
+            { offset: 1, color: 'rgba(0, 0, 0, 0.0)' },
           ]),
         },
         markLine: markLines.length > 0 ? { data: markLines, symbol: 'none' } : undefined,
@@ -163,8 +169,8 @@ function updateChart() {
         data: normalizedData,
         smooth: false,
         showSymbol: false,
-        itemStyle: { color: '#10b981' },
-        lineStyle: { width: 1.5, type: 'dashed', color: '#10b981' },
+        itemStyle: { color: '#a3a3a3' },
+        lineStyle: { width: 1.5, type: 'dashed', color: '#a3a3a3' },
       },
     ],
   }
