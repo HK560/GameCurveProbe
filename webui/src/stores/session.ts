@@ -267,6 +267,10 @@ export const useSessionStore = defineStore('session', () => {
         session.value.roi = event.payload.roi
         session.value.roi_quality = event.payload.quality
       }
+    } else if (event.type === 'config_updated' && event.payload?.config) {
+      if (session.value) {
+        session.value.config = event.payload.config
+      }
     } else if (event.type === 'deadzone_probe_updated' && event.payload?.probe) {
       probe.value = event.payload.probe
     } else if (event.type === 'result_imported' && event.payload?.result) {
