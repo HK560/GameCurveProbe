@@ -2,34 +2,39 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { createProbeLease } from '../services/probeLease'
+import DeadzoneRangeSlider from './DeadzoneRangeSlider.vue'
 import { 
   Target, 
   Play, 
   Square, 
-  Minus, 
-  Plus, 
   ArrowLeft, 
   ArrowRight, 
   Activity, 
-  CheckCircle2, 
-  Sliders
+  Radio
 } from 'lucide-vue-next'
+import type { RangeMode } from '../types/api'
 
 const sessionStore = useSessionStore()
 
-const currentOutput = ref<number>(0.05)
 const currentStep = ref<number>(0.005)
+const activeProbeTarget = ref<'inner' | 'outer'>('inner')
 const isMeasuringNoise = ref<boolean>(false)
-const noiseSuccess = ref<boolean>(false)
 
 const probeActive = computed(() => sessionStore.probe?.active ?? false)
 const expiresCountdown = computed(() => sessionStore.probe?.expires_in ?? 0)
 
 const config = computed(() => sessionStore.config)
-const innerDeadzone = computed(() => config.value?.inner_deadzone ?? 0.0)
-const outerDeadzone = computed(() => config.value?.outer_deadzone ?? 1.0)
+const innerDeadzone = computed(() => config.value?.inner_deadzone ?? 0.05)
+const outerDeadzone = computed(() => config.value?.outer_deadzone ?? 0.95)
+const pointCount = computed(() => config.value?.point_count ?? 17)
+const rangeMode = computed<RangeMode>(() => config.value?.range_mode ?? 'active_range')
+
+const currentProbeOutput = computed(() => {
+  return activeProbeTarget.value === 'inner' ? innerDeadzone.value : outerDeadzone.value
+})
+
 const probeLease = createProbeLease(
-  () => sessionStore.updateDeadzoneProbe(currentOutput.value),
+  () => sessionStore.updateDeadzoneProbe(currentProbeOutput.value),
   () => sessionStore.stopDeadzoneProbe(),
 )
 
@@ -38,8 +43,44 @@ async function toggleProbe() {
     probeLease.pause()
     await sessionStore.stopDeadzoneProbe()
   } else {
-    await sessionStore.startDeadzoneProbe(currentOutput.value, currentStep.value)
+    await sessionStore.startDeadzoneProbe(currentProbeOutput.value, currentStep.value)
     probeLease.start()
+  }
+}
+
+async function selectProbeTarget(target: 'inner' | 'outer') {
+  activeProbeTarget.value = target
+  if (probeActive.value) {
+    const output = target === 'inner' ? innerDeadzone.value : outerDeadzone.value
+    await sessionStore.updateDeadzoneProbe(output)
+  }
+}
+
+async function onInnerUpdate(val: number) {
+  await sessionStore.updateConfig({ inner_deadzone: val })
+  if (probeActive.value && activeProbeTarget.value === 'inner') {
+    await sessionStore.updateDeadzoneProbe(val)
+  }
+}
+
+async function onOuterUpdate(val: number) {
+  await sessionStore.updateConfig({ outer_deadzone: val })
+  if (probeActive.value && activeProbeTarget.value === 'outer') {
+    await sessionStore.updateDeadzoneProbe(val)
+  }
+}
+
+async function onPointCountUpdate(count: number) {
+  await sessionStore.updateConfig({ point_count: count })
+}
+
+async function onRangeModeUpdate(mode: RangeMode) {
+  await sessionStore.updateConfig({ range_mode: mode })
+}
+
+async function onProbeOutput(val: number) {
+  if (probeActive.value) {
+    await sessionStore.updateDeadzoneProbe(val)
   }
 }
 
@@ -51,37 +92,10 @@ onBeforeUnmount(() => {
   }
 })
 
-async function adjustOutput(delta: number) {
-  const next = Math.max(0.0, Math.min(1.0, Math.round((currentOutput.value + delta) * 1000) / 1000))
-  currentOutput.value = next
-  if (probeActive.value) {
-    await sessionStore.updateDeadzoneProbe(next)
-  }
-}
-
-async function onSliderChange(e: Event) {
-  const target = e.target as HTMLInputElement
-  const val = parseFloat(target.value)
-  currentOutput.value = val
-  if (probeActive.value) {
-    await sessionStore.updateDeadzoneProbe(val)
-  }
-}
-
-async function setAsInnerDeadzone() {
-  await sessionStore.updateConfig({ inner_deadzone: currentOutput.value })
-}
-
-async function setAsOuterDeadzone() {
-  await sessionStore.updateConfig({ outer_deadzone: currentOutput.value })
-}
-
 async function runNoiseBenchmark() {
   isMeasuringNoise.value = true
-  noiseSuccess.value = false
   try {
     await sessionStore.startIdleNoise()
-    noiseSuccess.value = true
   } catch (err) {
     console.error('Failed to run noise test:', err)
   } finally {
@@ -100,193 +114,162 @@ function proceedToMeasurement() {
 
 <template>
   <div class="space-y-6">
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      <!-- Left Column: Interactive Probing Tool -->
-      <div class="lg:col-span-7 space-y-4">
-        <div class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-5 shadow-xs">
-          <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
-            <div class="flex items-center space-x-2.5">
-              <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center">
-                <Target class="w-4 h-4" />
-              </div>
-              <div>
-                <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">摇杆输出微调探测器</h3>
-                <p class="text-[11px] text-neutral-400">实时输出右摇杆模拟信号，观察游戏视口微动以测定死区边界</p>
-              </div>
-            </div>
-
-            <div v-if="probeActive" class="flex items-center space-x-2 px-2.5 py-0.5 bg-neutral-900 text-white rounded-full text-[11px] font-mono">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>输出生效中 ({{ expiresCountdown }}s)</span>
-            </div>
+    <!-- Top Interactive Probing Bar -->
+    <div class="p-4 bg-white border border-neutral-200/80 rounded-xl shadow-xs space-y-4">
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center">
+            <Target class="w-4 h-4" />
           </div>
-
-          <!-- Step Size Buttons -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium text-neutral-600">探测步长 (分辨率)</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button
-                v-for="step in [0.001, 0.005, 0.01]"
-                :key="step"
-                @click="currentStep = step"
-                class="py-1.5 px-3 rounded-lg text-xs font-mono font-medium transition cursor-pointer"
-                :class="[
-                  currentStep === step
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
-                ]"
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+                摇杆实时输出微调与死区验证
+              </h3>
+              <span
+                v-if="probeActive"
+                class="flex items-center space-x-1.5 px-2 py-0.5 bg-neutral-900 text-white rounded-full text-[11px] font-mono"
               >
-                {{ step === 0.001 ? '0.001 (精细)' : step === 0.005 ? '0.005 (标准)' : '0.01 (快速)' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Output Value Display and Slider -->
-          <div class="space-y-2 pt-1">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-neutral-600">当前右摇杆输出 (X+)</span>
-              <span class="text-2xl font-bold font-mono text-neutral-900">
-                {{ (currentOutput * 100).toFixed(1) }}%
-                <span class="text-xs text-neutral-400 font-normal">({{ currentOutput.toFixed(3) }})</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>推杆输出中 ({{ expiresCountdown }}s)</span>
               </span>
             </div>
-
-            <input
-              type="range"
-              min="0.0"
-              max="1.0"
-              :step="currentStep"
-              :value="currentOutput"
-              @input="onSliderChange"
-              class="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
-            />
-
-            <!-- Increment / Decrement Buttons -->
-            <div class="flex items-center space-x-2 pt-1">
-              <button
-                @click="adjustOutput(-currentStep)"
-                class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center space-x-1 cursor-pointer transition"
-              >
-                <Minus class="w-3.5 h-3.5" />
-                <span>-{{ currentStep }}</span>
-              </button>
-              <button
-                @click="adjustOutput(currentStep)"
-                class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center space-x-1 cursor-pointer transition"
-              >
-                <Plus class="w-3.5 h-3.5" />
-                <span>+{{ currentStep }}</span>
-              </button>
-            </div>
+            <p class="text-[11px] text-neutral-400">
+              激活后实时输出当前选中的死区点数值，观察游戏视口画面微动以精确测定死区边界
+            </p>
           </div>
+        </div>
 
-          <!-- Probe Control & Set Deadzone Buttons -->
-          <div class="space-y-2 pt-2 border-t border-neutral-100">
-            <button
-              @click="toggleProbe"
-              class="w-full py-2.5 rounded-lg font-medium text-xs flex items-center justify-center space-x-2 transition cursor-pointer"
-              :class="[
-                probeActive
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                  : 'bg-neutral-900 hover:bg-neutral-800 text-white'
-              ]"
-            >
-              <Square v-if="probeActive" class="w-3.5 h-3.5 fill-current" />
-              <Play v-else class="w-3.5 h-3.5 fill-current" />
-              <span>{{ probeActive ? '释放摇杆 (停止测试)' : '激活摇杆实时输出' }}</span>
-            </button>
-
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <button
-                @click="setAsInnerDeadzone"
-                class="bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-800 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer flex items-center justify-center space-x-1"
-              >
-                <CheckCircle2 class="w-3.5 h-3.5 text-neutral-600" />
-                <span>设为内死区 ({{ currentOutput.toFixed(3) }})</span>
-              </button>
-              <button
-                @click="setAsOuterDeadzone"
-                class="bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-800 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer flex items-center justify-center space-x-1"
-              >
-                <CheckCircle2 class="w-3.5 h-3.5 text-neutral-600" />
-                <span>设为外死区 ({{ currentOutput.toFixed(3) }})</span>
-              </button>
-            </div>
-          </div>
+        <!-- Master Output Switcher Button -->
+        <div>
+          <button
+            @click="toggleProbe"
+            class="py-2 px-4 rounded-lg font-medium text-xs flex items-center justify-center space-x-2 transition cursor-pointer shadow-xs"
+            :class="[
+              probeActive
+                ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                : 'bg-neutral-900 hover:bg-neutral-800 text-white'
+            ]"
+          >
+            <Square v-if="probeActive" class="w-3.5 h-3.5 fill-current" />
+            <Play v-else class="w-3.5 h-3.5 fill-current" />
+            <span>{{ probeActive ? '释放摇杆 (停止测试)' : '激活摇杆实时输出' }}</span>
+          </button>
         </div>
       </div>
 
-      <!-- Right Column: Deadzone Configuration Summary & Idle Noise Benchmark -->
-      <div class="lg:col-span-5 space-y-4 flex flex-col justify-between">
-        <div class="space-y-4">
-          <!-- Configured Deadzones Card -->
-          <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
-            <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-              <Sliders class="w-3.5 h-3.5" />
-              <span>已设死区参数</span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div class="p-3 bg-neutral-50 border border-neutral-200/60 rounded-lg">
-                <div class="text-[11px] text-neutral-500">内死区 (Inner)</div>
-                <div class="text-xl font-bold font-mono text-neutral-900 mt-1">
-                  {{ (innerDeadzone * 100).toFixed(1) }}%
-                </div>
-                <div class="text-[10px] text-neutral-400 mt-0.5">起始响应阈值</div>
-              </div>
-
-              <div class="p-3 bg-neutral-50 border border-neutral-200/60 rounded-lg">
-                <div class="text-[11px] text-neutral-500">外死区 (Outer)</div>
-                <div class="text-xl font-bold font-mono text-neutral-900 mt-1">
-                  {{ (outerDeadzone * 100).toFixed(1) }}%
-                </div>
-                <div class="text-[10px] text-neutral-400 mt-0.5">满速饱和阈值</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Noise Floor Benchmark Card -->
-          <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                <Activity class="w-3.5 h-3.5" />
-                <span>画面静止噪底校准</span>
-              </div>
-              <button
-                @click="runNoiseBenchmark"
-                :disabled="isMeasuringNoise"
-                class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-2.5 py-1 rounded-md transition cursor-pointer"
-              >
-                {{ isMeasuringNoise ? '采样中...' : '测定噪底' }}
-              </button>
-            </div>
-            <p class="text-xs text-neutral-500">
-              采样 ROI 画面在手柄回中静止时的背景微晃与噪点，用于滤除环境噪底。
-            </p>
-            <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
-              <span>X噪底: {{ sessionStore.noise.floor_x }} px/s</span>
-              <span>Y噪底: {{ sessionStore.noise.floor_y }} px/s</span>
-            </div>
+      <!-- Probing Targets & Step Selector Row -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+        <!-- Target Selector (6 cols) -->
+        <div class="md:col-span-6 flex items-center space-x-3">
+          <span class="text-xs text-neutral-500 shrink-0">当前探测目标:</span>
+          <div class="flex rounded-lg bg-neutral-100 p-0.5 text-xs font-medium text-neutral-600 flex-1">
+            <button
+              type="button"
+              @click="selectProbeTarget('inner')"
+              class="flex-1 py-1.5 px-3 rounded-md transition cursor-pointer flex items-center justify-center space-x-1.5"
+              :class="activeProbeTarget === 'inner' ? 'bg-white text-neutral-900 shadow-xs font-bold' : 'hover:text-neutral-900'"
+            >
+              <Radio class="w-3.5 h-3.5" :class="activeProbeTarget === 'inner' ? 'text-neutral-900' : 'text-neutral-400'" />
+              <span>内死区: {{ (innerDeadzone * 100).toFixed(1) }}%</span>
+            </button>
+            <button
+              type="button"
+              @click="selectProbeTarget('outer')"
+              class="flex-1 py-1.5 px-3 rounded-md transition cursor-pointer flex items-center justify-center space-x-1.5"
+              :class="activeProbeTarget === 'outer' ? 'bg-white text-neutral-900 shadow-xs font-bold' : 'hover:text-neutral-900'"
+            >
+              <Radio class="w-3.5 h-3.5" :class="activeProbeTarget === 'outer' ? 'text-neutral-900' : 'text-neutral-400'" />
+              <span>外死区: {{ (outerDeadzone * 100).toFixed(1) }}%</span>
+            </button>
           </div>
         </div>
 
-        <!-- Navigation Buttons -->
-        <div class="flex items-center space-x-3 pt-2">
+        <!-- Step Selector (6 cols) -->
+        <div class="md:col-span-6 flex items-center space-x-3">
+          <span class="text-xs text-neutral-500 shrink-0">调节步长:</span>
+          <div class="grid grid-cols-3 gap-1.5 flex-1">
+            <button
+              v-for="step in [0.001, 0.005, 0.01]"
+              :key="step"
+              type="button"
+              @click="currentStep = step"
+              class="py-1 px-2.5 rounded-lg text-xs font-mono font-medium transition cursor-pointer text-center"
+              :class="[
+                currentStep === step
+                  ? 'bg-neutral-900 text-white'
+                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
+              ]"
+            >
+              {{ step === 0.001 ? '0.001 (精细)' : step === 0.005 ? '0.005 (标准)' : '0.01 (快速)' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Single-Axis Dual-Thumb Deadzone Range Slider & Predicted Points Visualizer -->
+    <DeadzoneRangeSlider
+      :inner-deadzone="innerDeadzone"
+      :outer-deadzone="outerDeadzone"
+      :point-count="pointCount"
+      :range-mode="rangeMode"
+      :probe-active="probeActive"
+      :active-probe-target="activeProbeTarget"
+      :step="currentStep"
+      @update:inner-deadzone="onInnerUpdate"
+      @update:outer-deadzone="onOuterUpdate"
+      @update:point-count="onPointCountUpdate"
+      @update:range-mode="onRangeModeUpdate"
+      @update:active-probe-target="selectProbeTarget"
+      @probe-output="onProbeOutput"
+    />
+
+    <!-- Bottom Row: Noise Benchmark & Step Navigation -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+      <!-- Noise Floor Benchmark Card (7 cols) -->
+      <div class="lg:col-span-7 p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 shadow-xs">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-600">
+            <Activity class="w-3.5 h-3.5 text-neutral-700" />
+            <span>画面静止噪底校准 (Noise Floor)</span>
+          </div>
           <button
-            @click="goBack"
-            class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
+            type="button"
+            @click="runNoiseBenchmark"
+            :disabled="isMeasuringNoise"
+            class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-3 py-1 rounded-md transition cursor-pointer font-medium"
           >
-            <ArrowLeft class="w-4 h-4" />
-            <span>上一步</span>
-          </button>
-          <button
-            @click="proceedToMeasurement"
-            class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
-          >
-            <span>下一步：曲线测定</span>
-            <ArrowRight class="w-4 h-4" />
+            {{ isMeasuringNoise ? '采样中...' : '测定噪底' }}
           </button>
         </div>
+        <p class="text-[11px] text-neutral-500">
+          采样游戏画面在手柄回中完全静止时的背景微晃与噪点，用于在后续曲线测定中准确过滤环境噪底。
+        </p>
+        <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
+          <span>X 轴噪底: {{ sessionStore.noise.floor_x }} px/s</span>
+          <span>Y 轴噪底: {{ sessionStore.noise.floor_y }} px/s</span>
+        </div>
+      </div>
+
+      <!-- Navigation Buttons (5 cols) -->
+      <div class="lg:col-span-5 flex items-center space-x-3">
+        <button
+          type="button"
+          @click="goBack"
+          class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
+        >
+          <ArrowLeft class="w-4 h-4" />
+          <span>上一步：窗口与抓图</span>
+        </button>
+        <button
+          type="button"
+          @click="proceedToMeasurement"
+          class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs shadow-xs"
+        >
+          <span>下一步：曲线测定</span>
+          <ArrowRight class="w-4 h-4" />
+        </button>
       </div>
     </div>
   </div>
