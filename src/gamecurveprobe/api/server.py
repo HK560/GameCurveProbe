@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from gamecurveprobe.api.routes import router
+from gamecurveprobe.api.websocket import ws_router
 from gamecurveprobe.context import AppContext
 from gamecurveprobe.errors import DomainError
 
@@ -61,6 +62,7 @@ def create_app(
         )
 
     app.include_router(router)
+    app.include_router(ws_router)
 
     # Static assets for Vue frontend
     if static_dir and static_dir.exists():
