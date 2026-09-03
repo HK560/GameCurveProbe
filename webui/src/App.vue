@@ -3,6 +3,8 @@ import { onMounted } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useSessionStore } from './stores/session'
 import { ws } from './services/ws'
+import CaptureStep from './components/CaptureStep.vue'
+import DeadzoneStep from './components/DeadzoneStep.vue'
 import { 
   Monitor, 
   Target, 
@@ -113,12 +115,10 @@ onMounted(async () => {
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
       <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
         <div v-if="sessionStore.activeStep === 1">
-          <h2 class="text-xl font-semibold text-white mb-2">步骤 1: 窗口与抓图配置</h2>
-          <p class="text-sm text-slate-400 mb-6">选择目标游戏窗口，系统将自动绑定 Windows 现代图形捕获（WGC），并在游戏画面中圈选高对比度特征区域。</p>
+          <CaptureStep />
         </div>
         <div v-else-if="sessionStore.activeStep === 2">
-          <h2 class="text-xl font-semibold text-white mb-2">步骤 2: 手柄内外死区标定</h2>
-          <p class="text-sm text-slate-400 mb-6">通过微调步进输出实时探测画面微动点，准确测定物理死区与游戏软件内死区。</p>
+          <DeadzoneStep />
         </div>
         <div v-else-if="sessionStore.activeStep === 3">
           <h2 class="text-xl font-semibold text-white mb-2">步骤 3: 响应曲线全自动测定</h2>
