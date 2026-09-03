@@ -41,6 +41,7 @@ def health(context: AppContext = Depends(get_context)) -> dict[str, Any]:
 @router.get("/windows", response_model=WindowsListResponse, dependencies=[Depends(verify_origin), Depends(require_token)])
 def list_windows(context: AppContext = Depends(get_context)) -> dict[str, Any]:
     wins = context.windows.list_windows()
+    print(f"[API] GET /api/windows -> found {len(wins)} windows")
     return {
         "windows": [
             {
@@ -57,10 +58,12 @@ def list_windows(context: AppContext = Depends(get_context)) -> dict[str, Any]:
 
 @router.post("/capture/attach", dependencies=[Depends(verify_origin), Depends(require_token)])
 def attach_capture(req: CaptureAttachRequest, context: AppContext = Depends(get_context)) -> dict[str, Any]:
+    print(f"[API] POST /api/capture/attach: window_id={req.window_id}, backend={req.backend}, fps={req.target_fps}")
     info = context.capture.attach(req.window_id, requested=req.backend, fps=req.target_fps)
     context.session.update_capture(info)
     info_dict = asdict(info)
     context.events.publish("capture_changed", {"capture": info_dict})
+    print(f"[API] POST /api/capture/attach -> attached: {info_dict}")
     return {"capture": info_dict}
 
 

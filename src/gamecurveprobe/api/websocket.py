@@ -49,11 +49,13 @@ def to_dict(obj: Any) -> Any:
 async def ws_events(websocket: WebSocket) -> None:
     context: AppContext = websocket.app.state.context
     if not _verify_ws_auth(websocket, context):
+        print(f"[WS-Events] Rejected connection (invalid token/origin) from {websocket.client}")
         await websocket.close(code=4401)
         return
 
     await websocket.accept()
     subscriber = context.events.subscribe()
+    print(f"[WS-Events] Accepted client connection from {websocket.client}")
 
     try:
         # Initial session sync
@@ -67,6 +69,7 @@ async def ws_events(websocket: WebSocket) -> None:
             },
         }
         await websocket.send_text(json.dumps(initial_event, default=str))
+        print(f"[WS-Events] Dispatched session_sync to {websocket.client} (has_capture={snapshot.capture is not None})")
 
         while True:
             envelope = subscriber.next_event(timeout=0.05)
@@ -79,10 +82,11 @@ async def ws_events(websocket: WebSocket) -> None:
                     "job_id": envelope.job_id,
                 }
                 await websocket.send_text(json.dumps(msg, default=str))
+                print(f"[WS-Events] Dispatched event '{envelope.type}' to {websocket.client}")
             else:
                 await asyncio.sleep(0.02)
     except (WebSocketDisconnect, asyncio.CancelledError):
-        pass
+        print(f"[WS-Events] Client disconnected: {websocket.client}")
     finally:
         context.events.unsubscribe(subscriber)
 
@@ -91,11 +95,14 @@ async def ws_events(websocket: WebSocket) -> None:
 async def ws_preview(websocket: WebSocket) -> None:
     context: AppContext = websocket.app.state.context
     if not _verify_ws_auth(websocket, context):
+        print(f"[WS-Preview] Rejected connection (invalid token/origin) from {websocket.client}")
         await websocket.close(code=4401)
         return
 
     await websocket.accept()
     subscriber = context.events.subscribe()
+    print(f"[WS-Preview] Accepted client connection from {websocket.client}")
+    logged_first_frame = False
 
     try:
         while True:
@@ -112,9 +119,12 @@ async def ws_preview(websocket: WebSocket) -> None:
                 )
                 payload = header + preview.jpeg
                 await websocket.send_bytes(payload)
+                if not logged_first_frame:
+                    print(f"[WS-Preview] First binary preview frame sent to {websocket.client} ({preview.width}x{preview.height}, {len(payload)} bytes)")
+                    logged_first_frame = True
             else:
                 await asyncio.sleep(0.02)
     except (WebSocketDisconnect, asyncio.CancelledError):
-        pass
+        print(f"[WS-Preview] Client disconnected: {websocket.client}")
     finally:
         context.events.unsubscribe(subscriber)

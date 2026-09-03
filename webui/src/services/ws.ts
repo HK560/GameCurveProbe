@@ -26,12 +26,14 @@ class WebSocketManager {
     this.eventsWs = new WebSocket(wsUrl)
 
     this.eventsWs.onopen = () => {
+      console.debug('[WS Events] Connection established.')
       this.reconnectDelay = 1000
     }
 
     this.eventsWs.onmessage = (msg) => {
       try {
         const data = JSON.parse(msg.data)
+        console.debug('[WS Events] Received event:', data.type, data.payload)
         for (const handler of this.eventHandlers) {
           handler(data)
         }
@@ -63,6 +65,11 @@ class WebSocketManager {
     this.previewWs = new WebSocket(wsUrl)
     this.previewWs.binaryType = 'arraybuffer'
 
+    this.previewWs.onopen = () => {
+      console.debug('[WS Preview] Connection established.')
+    }
+
+    let frameCount = 0
     this.previewWs.onmessage = (msg) => {
       if (typeof msg.data === 'string') return
       const buffer = msg.data as ArrayBuffer
@@ -81,6 +88,11 @@ class WebSocketManager {
       const width = view.getUint16(4, true)
       const height = view.getUint16(6, true)
       const frameId = view.getUint32(8, true)
+
+      frameCount++
+      if (frameCount === 1 || frameCount % 120 === 0) {
+        console.debug(`[WS Preview] Received frame #${frameId} (${width}x${height}, total frames: ${frameCount})`)
+      }
 
       const jpegBytes = buffer.slice(20)
       const blob = new Blob([jpegBytes], { type: 'image/jpeg' })
