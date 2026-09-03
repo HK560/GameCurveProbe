@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import secrets
 import sys
 import threading
@@ -15,7 +16,7 @@ from gamecurveprobe.backends.capture.dxcam_monitor_backend import DxcamMonitorCa
 from gamecurveprobe.backends.capture.wgc_backend import WgcCaptureBackend
 from gamecurveprobe.backends.controller.vgamepad_backend import VgamepadControllerBackend
 from gamecurveprobe.context import AppContext
-from gamecurveprobe.events import EventHub
+from gamecurveprobe.events import EventHub, publish_job_event
 from gamecurveprobe.services.capture_service import CaptureService
 from gamecurveprobe.services.controller_service import ControllerService
 from gamecurveprobe.services.deadzone_probe_service import DeadzoneProbeService
@@ -41,7 +42,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_context(token: str, host: str, port: int) -> AppContext:
+def build_context(
+    token: str,
+    host: str,
+    port: int,
+    shutdown_callback: Callable[[], None] | None = None,
+) -> AppContext:
     controller_backend = VgamepadControllerBackend()
     controller = ControllerService(controller_backend)
 
@@ -56,7 +62,7 @@ def build_context(token: str, host: str, port: int) -> AppContext:
     )
     session = SessionService()
     jobs = JobManager(
-        publish=lambda ev: events.publish("job_event", ev),
+        publish=lambda ev: publish_job_event(events, ev),
     )
 
     probe = DeadzoneProbeService(controller)
@@ -91,6 +97,7 @@ def build_context(token: str, host: str, port: int) -> AppContext:
         export=export,
         events=events,
         allowed_origins=allowed_origins,
+        shutdown_callback=shutdown_callback or (lambda: None),
     )
 
 
@@ -105,8 +112,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     port = args.port
 
     static_dir = Path(__file__).resolve().parent / "web_dist"
+    def exit_process() -> None:
+        timer = threading.Timer(0.1, lambda: os._exit(0))
+        timer.daemon = True
+        timer.start()
+
     app = create_app(
-        context_factory=lambda: build_context(token, host, port),
+        context_factory=lambda: build_context(token, host, port, shutdown_callback=exit_process),
         static_dir=static_dir,
     )
 

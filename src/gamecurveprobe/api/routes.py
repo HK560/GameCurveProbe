@@ -4,7 +4,7 @@ import io
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 
 from gamecurveprobe.api.auth import require_token, verify_origin
@@ -37,6 +37,12 @@ def get_context(request: Request) -> AppContext:
 @router.get("/health", response_model=HealthResponse)
 def health(context: AppContext = Depends(get_context)) -> dict[str, Any]:
     return {"status": "ok", "controller_ready": context.controller.is_available()}
+
+
+@router.post("/app/quit", dependencies=[Depends(verify_origin), Depends(require_token)])
+def quit_app(background_tasks: BackgroundTasks, context: AppContext = Depends(get_context)) -> dict[str, str]:
+    background_tasks.add_task(context.request_shutdown)
+    return {"status": "shutting_down"}
 
 
 @router.get("/windows", response_model=WindowsListResponse, dependencies=[Depends(verify_origin), Depends(require_token)])

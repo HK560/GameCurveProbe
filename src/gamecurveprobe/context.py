@@ -31,6 +31,7 @@ class AppContext:
     export: ExportService
     events: EventHub
     allowed_origins: frozenset[str] = frozenset({"http://127.0.0.1", "http://localhost"})
+    shutdown_callback: Callable[[], None] = lambda: None
 
     def close(self) -> None:
         self.jobs.cancel_active()
@@ -43,6 +44,11 @@ class AppContext:
             self.events.close,
         ):
             self._run_bounded(cleanup, timeout=0.5)
+
+    def request_shutdown(self) -> None:
+        """Release hardware resources before terminating the local application."""
+        self.close()
+        self.shutdown_callback()
 
     @staticmethod
     def _run_bounded(cleanup: Callable[[], None], timeout: float) -> None:

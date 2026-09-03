@@ -89,6 +89,10 @@ export class ApiClient {
     return this.request('/api/health')
   }
 
+  public async quitApplication(): Promise<{ status: string }> {
+    return this.request('/api/app/quit', { method: 'POST' })
+  }
+
   public async getWindows(): Promise<WindowInfo[]> {
     const res = await this.request<{ windows: WindowInfo[] }>('/api/windows')
     return res.windows

@@ -128,3 +128,11 @@ class EventHub:
             for sub in self._subscribers:
                 sub.close()
             self._subscribers.clear()
+
+
+def publish_job_event(events: EventHub, event: Mapping[str, object]) -> None:
+    """Forward a JobManager event without hiding its lifecycle type."""
+    event_type = event.get("type")
+    if not isinstance(event_type, str):
+        raise ValueError("Job event must include a string 'type'.")
+    events.publish(event_type, event)
