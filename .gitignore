@@ -12,6 +12,5 @@ htmlcov/
 .ruff_cache/
 .vscode/
 .idea/
-docs/superpowers/
 build/
 dist/
