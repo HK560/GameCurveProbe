@@ -2,12 +2,17 @@ import { ref } from 'vue'
 
 export type Language = 'zh' | 'en'
 
-const savedLocale = (localStorage.getItem('gamecurveprobe_locale') as Language) || 'zh'
+const savedLocale =
+  (typeof localStorage !== 'undefined' && typeof localStorage?.getItem === 'function'
+    ? (localStorage.getItem('gamecurveprobe_locale') as Language)
+    : null) || 'zh'
 export const currentLocale = ref<Language>(savedLocale)
 
 export function setLocale(lang: Language) {
   currentLocale.value = lang
-  localStorage.setItem('gamecurveprobe_locale', lang)
+  if (typeof localStorage !== 'undefined' && typeof localStorage?.setItem === 'function') {
+    localStorage.setItem('gamecurveprobe_locale', lang)
+  }
 }
 
 export const messages = {
@@ -73,6 +78,11 @@ export const messages = {
     step_3_desc: '自动化稳态旋转测定',
     step_4_title: '分析与导出',
     step_4_desc: '拟合曲线与报告下载',
+    back_to_capture: '返回：窗口与抓图',
+    back_to_deadzone: '返回：死区标定',
+    back_to_measurement: '返回：曲线测定',
+    proceed_to_analysis: '下一步：拟合分析',
+    restart_test: '重新测定',
 
     // Step 1: Capture & ROI
     target_window: '目标游戏窗口',
@@ -376,6 +386,12 @@ export const messages = {
     step_3_desc: 'Automated Steady-State Probe',
     step_4_title: 'Fit & Analysis',
     step_4_desc: 'Curve Fitting & Report Export',
+    back_to_capture: 'Back: Window & Capture',
+    back_to_deadzone: 'Back: Deadzone Calibration',
+    back_to_measurement: 'Back: Curve Measurement',
+    proceed_to_measurement: 'Next: Curve Measurement',
+    proceed_to_analysis: 'Next: Fit & Analysis',
+    restart_test: 'Re-measure Curve',
 
     // Step 1: Capture & ROI
     target_window: 'Target Game Window',
@@ -438,7 +454,6 @@ export const messages = {
     start_probe: 'Start Real-time Output',
     stop_probe: 'Release Stick (Stop Probe)',
     probe_running_hint: 'Outputting target deadzone value via virtual controller. Switch to the game to verify initial rotation or maximum speed.',
-    proceed_to_measurement: 'Next: Curve Probe',
     slider_card_title: 'Dual Control Points & Range Calibration',
     slider_card_desc: 'Drag or fine-tune dual control points to set inner/outer deadzones and view active sampling range.',
     effective_detection_range: 'Active Detection Range',
