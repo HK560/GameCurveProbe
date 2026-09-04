@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSessionStore } from '../src/stores/session'
 
@@ -87,4 +87,47 @@ describe('SessionStore', () => {
 
     expect(store.noise?.floor_x).toBe(1.5)
   })
+
+  it('persists and retrieves user configuration via localStorage', () => {
+    const storeMap: Record<string, string> = {}
+    const mockStorage = {
+      getItem: (key: string) => storeMap[key] ?? null,
+      setItem: (key: string, val: string) => { storeMap[key] = val },
+      removeItem: (key: string) => { delete storeMap[key] },
+      clear: () => { Object.keys(storeMap).forEach(k => delete storeMap[k]) },
+    }
+    vi.stubGlobal('localStorage', mockStorage)
+
+    const store = useSessionStore()
+
+    // Simulate saving settings
+    store.updateConfig({
+      hotkey_start: 'F8',
+      hotkey_stop: 'F12',
+      auto_wake: false,
+      wake_input: 'left_stick',
+      sound_enabled: false,
+      inner_deadzone: 0.08,
+      dz_target: 'outer',
+    })
+
+    const raw = mockStorage.getItem('gamecurveprobe_config')
+    expect(raw).not.toBeNull()
+    const parsed = JSON.parse(raw!)
+    expect(parsed.hotkey_start).toBe('F8')
+    expect(parsed.hotkey_stop).toBe('F12')
+    expect(parsed.auto_wake).toBe(false)
+    expect(parsed.wake_input).toBe('left_stick')
+    expect(parsed.sound_enabled).toBe(false)
+    expect(parsed.inner_deadzone).toBe(0.08)
+    expect(parsed.dz_target).toBe('outer')
+
+    // Store config computed property automatically reflects persisted values
+    expect(store.config?.hotkey_start).toBe('F8')
+    expect(store.config?.auto_wake).toBe(false)
+    expect(store.config?.wake_input).toBe('left_stick')
+
+    vi.unstubAllGlobals()
+  })
 })
+

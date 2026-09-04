@@ -20,7 +20,7 @@ import {
   BarChart3, 
   Gamepad2, 
   Power,
-  Keyboard,
+  Settings,
   Globe,
   ArrowLeft,
   ArrowRight,
@@ -30,8 +30,6 @@ import {
 const connectionStore = useConnectionStore()
 const sessionStore = useSessionStore()
 const isQuitting = ref(false)
-const wakeInput = ref('right_stick')
-const isWaking = ref(false)
 const showHotkeyModal = ref(false)
 
 async function toggleController() {
@@ -39,25 +37,6 @@ async function toggleController() {
     await connectionStore.setControllerEnabled(!connectionStore.controllerEnabled)
   } catch (err: any) {
     window.alert(err.message || t('toggle_controller_failed'))
-  }
-}
-
-async function wakeGame() {
-  isWaking.value = true
-  try {
-    await api.wakeController(wakeInput.value)
-    window.setTimeout(() => { isWaking.value = false }, 500)
-  } catch (err: any) {
-    isWaking.value = false
-    window.alert(err.message || t('wake_failed'))
-  }
-}
-
-async function onWakeInputChange() {
-  try {
-    await sessionStore.updateConfig({ wake_input: wakeInput.value })
-  } catch (err: any) {
-    console.warn('Failed to update wake input config:', err)
   }
 }
 
@@ -271,18 +250,15 @@ onUnmounted(() => {
             </span>
           </div>
 
-          <!-- Hotkey & Sound settings button -->
+          <!-- Settings button -->
           <button
             type="button"
             class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer border border-neutral-200/80"
-            :title="t('hotkey_modal_title_tooltip')"
+            :title="t('settings')"
             @click="showHotkeyModal = true"
           >
-            <Keyboard class="w-3.5 h-3.5 text-neutral-700" />
-            <span>{{ t('hotkeys_and_sound') }}</span>
-            <span class="font-mono text-[10px] bg-neutral-100 px-1 py-0.2 rounded text-neutral-500">
-              {{ sessionStore.config?.hotkey_start || 'F9' }} / {{ sessionStore.config?.hotkey_stop || 'F10' }}
-            </span>
+            <Settings class="w-3.5 h-3.5 text-neutral-700" />
+            <span>{{ t('settings') }}</span>
           </button>
 
           <label
@@ -301,60 +277,6 @@ onUnmounted(() => {
             />
             <span class="relative w-7 h-4 rounded-full bg-neutral-300 peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-3 after:h-3 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-3"></span>
           </label>
-          <div class="flex items-center gap-1.5">
-            <select
-              v-model="wakeInput"
-              :disabled="isWaking || !connectionStore.controllerEnabled"
-              :aria-label="t('wake_key')"
-              @change="onWakeInputChange"
-              class="h-7 rounded-md border border-neutral-200 bg-white px-2 text-[11px] text-neutral-600 disabled:opacity-50"
-            >
-              <optgroup :label="t('wake_group_basic')">
-                <option value="right_stick">{{ t('wake_opt_right_stick') }}</option>
-                <option value="left_stick">{{ t('wake_opt_left_stick') }}</option>
-                <option value="a">{{ t('wake_opt_a') }}</option>
-                <option value="b">{{ t('wake_opt_b') }}</option>
-                <option value="x">{{ t('wake_opt_x') }}</option>
-                <option value="y">{{ t('wake_opt_y') }}</option>
-              </optgroup>
-              <optgroup :label="t('wake_group_bumper_trigger')">
-                <option value="left_bumper">{{ t('wake_opt_lb') }}</option>
-                <option value="right_bumper">{{ t('wake_opt_rb') }}</option>
-                <option value="left_trigger">{{ t('wake_opt_lt') }}</option>
-                <option value="right_trigger">{{ t('wake_opt_rt') }}</option>
-              </optgroup>
-              <optgroup :label="t('wake_group_function')">
-                <option value="start">{{ t('wake_opt_start') }}</option>
-                <option value="back">{{ t('wake_opt_back') }}</option>
-                <option value="guide">{{ t('wake_opt_guide') }}</option>
-              </optgroup>
-              <optgroup :label="t('wake_group_dpad')">
-                <option value="dpad_up">{{ t('wake_opt_dpad_up') }}</option>
-                <option value="dpad_down">{{ t('wake_opt_dpad_down') }}</option>
-                <option value="dpad_left">{{ t('wake_opt_dpad_left') }}</option>
-                <option value="dpad_right">{{ t('wake_opt_dpad_right') }}</option>
-              </optgroup>
-              <optgroup :label="t('wake_group_stick_pulse')">
-                <option value="left_stick_up">{{ t('wake_opt_ls_up') }}</option>
-                <option value="left_stick_down">{{ t('wake_opt_ls_down') }}</option>
-                <option value="left_stick_left">{{ t('wake_opt_ls_left') }}</option>
-                <option value="left_stick_right">{{ t('wake_opt_ls_right') }}</option>
-                <option value="right_stick_up">{{ t('wake_opt_rs_up') }}</option>
-                <option value="right_stick_down">{{ t('wake_opt_rs_down') }}</option>
-                <option value="right_stick_left">{{ t('wake_opt_rs_left') }}</option>
-                <option value="right_stick_right">{{ t('wake_opt_rs_right') }}</option>
-              </optgroup>
-            </select>
-            <button
-              type="button"
-              :disabled="isWaking || !connectionStore.controllerEnabled"
-              class="h-7 rounded-md bg-neutral-900 px-2.5 text-[11px] font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer"
-              :title="t('press_wake_hint')"
-              @click="wakeGame"
-            >
-              {{ isWaking ? t('waking') : t('test_wake') }}
-            </button>
-          </div>
 
           <!-- Language Switcher -->
           <button

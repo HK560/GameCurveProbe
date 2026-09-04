@@ -28,7 +28,7 @@ from gamecurveprobe.services.hotkey_service import HotkeyService
 from gamecurveprobe.services.idle_noise_runner import IdleNoiseRunner
 from gamecurveprobe.services.job_manager import JobManager
 from gamecurveprobe.services.measurement_runner import MeasurementRunner
-from gamecurveprobe.services.session_service import SessionService
+from gamecurveprobe.services.session_service import DEFAULT_CONFIG_FILE, SessionService
 from gamecurveprobe.services.window_service import WindowService
 from gamecurveprobe.vision.curve_classifier import classify_curve
 
@@ -65,7 +65,7 @@ def build_context(
         preview_callback=events.publish_preview,
         window_service=window_service,
     )
-    session = SessionService()
+    session = SessionService(config_path=DEFAULT_CONFIG_FILE)
 
     def handle_job_publish(ev: Mapping[str, object]) -> None:
         publish_job_event(events, ev)

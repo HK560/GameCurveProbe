@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
+import { useConnectionStore } from '../stores/connection'
 import { api } from '../services/api'
 import { soundSynth } from '../services/sound'
 import { t } from '../services/i18n'
-import { X, Keyboard, Volume2, VolumeX, Sparkles, Check, Gamepad2 } from 'lucide-vue-next'
+import { X, Keyboard, Volume2, VolumeX, Sparkles, Check, Gamepad2, Settings } from 'lucide-vue-next'
 
 const props = defineProps<{
   show: boolean
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const sessionStore = useSessionStore()
+const connectionStore = useConnectionStore()
 
 const hotkeyEnabled = ref(true)
 const hotkeyStart = ref('F9')
@@ -26,6 +28,7 @@ const autoWake = ref(true)
 const wakeInput = ref('right_stick')
 const isSaving = ref(false)
 const isTestingSound = ref(false)
+const isWaking = ref(false)
 const saveSuccess = ref(false)
 
 const startKeyOptions = [
@@ -117,6 +120,17 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
     setTimeout(() => { isTestingSound.value = false }, 300)
   }
 }
+
+async function testWakeGame() {
+  isWaking.value = true
+  try {
+    await api.wakeController(wakeInput.value)
+    setTimeout(() => { isWaking.value = false }, 500)
+  } catch (err: any) {
+    isWaking.value = false
+    window.alert(err.message || t('wake_failed'))
+  }
+}
 </script>
 
 <template>
@@ -126,10 +140,10 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
       <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
         <div class="flex items-center space-x-2.5">
           <div class="w-8 h-8 rounded-lg bg-neutral-900 flex items-center justify-center text-white">
-            <Keyboard class="w-4 h-4" />
+            <Settings class="w-4 h-4" />
           </div>
           <div>
-            <h3 class="text-sm font-semibold text-neutral-900">{{ t('hotkey_settings_title') }}</h3>
+            <h3 class="text-sm font-semibold text-neutral-900">{{ t('settings') }}</h3>
           </div>
         </div>
         <button
@@ -224,8 +238,19 @@ async function testSound(type: 'start' | 'stop' | 'complete' | 'test') {
           <p class="text-[11px] text-neutral-500 leading-relaxed">
             {{ t('auto_wake_desc') }}
           </p>
-          <div v-if="autoWake" class="space-y-1 pt-1">
-            <label class="text-[11px] font-medium text-neutral-600">{{ t('wake_key') }}</label>
+          <div v-if="autoWake" class="space-y-1.5 pt-1">
+            <div class="flex items-center justify-between">
+              <label class="text-[11px] font-medium text-neutral-600">{{ t('wake_key') }}</label>
+              <button
+                type="button"
+                :disabled="isWaking || !connectionStore.controllerEnabled"
+                @click="testWakeGame"
+                class="px-2 py-0.5 rounded-md bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-medium transition cursor-pointer"
+                :title="t('press_wake_hint')"
+              >
+                {{ isWaking ? t('waking') : t('test_wake') }}
+              </button>
+            </div>
             <select
               v-model="wakeInput"
               class="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
