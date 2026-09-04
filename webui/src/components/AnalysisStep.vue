@@ -397,6 +397,14 @@ function restartProbe() {
           <div>
             <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('export_and_share') }}</h3>
             <p class="text-[11px] text-neutral-400">{{ t('export_desc') }}</p>
+            <a
+              href="https://www.controllermeta.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-block text-[11px] text-neutral-600 underline underline-offset-2 hover:text-neutral-900"
+            >
+              {{ t('controller_meta_link') }}
+            </a>
           </div>
         </div>
 

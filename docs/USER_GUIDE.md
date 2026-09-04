@@ -67,4 +67,4 @@ uv run gamecurveprobe
 ### 第四步：拟合分析与报告导出 (Analysis & Export)
 1. 在图表中可交互查看角速度曲线（左 Y 轴）与归一化响应曲线（右 Y 轴），内/外死区标记线一目了然。
 2. 查看顶部“曲线数学模型”分析卡片，系统将给出线性度、指数系数及拟合置信度。
-3. 点击“导出 JSON”或“导出 CSV”，即可将结构化测试数据保存在本地供进一步分析。
+3. 点击“导出 JSON”或“导出 CSV”，即可将曲线数据以 ControllerMeta 曲线工具支持的格式保存到本地。ControllerMeta 是需要额外下载安装的手柄检测工具，请前往 [ControllerMeta 官网](https://www.controllermeta.com/) 下载，安装后可用它继续编辑和转换曲线。
