@@ -13,8 +13,10 @@ import MeasurementStep from './components/MeasurementStep.vue'
 import HotkeySettingsModal from './components/HotkeySettingsModal.vue'
 import CountdownModal from './components/CountdownModal.vue'
 import TutorialOverlay from './components/TutorialOverlay.vue'
+import VigemWarningModal from './components/VigemWarningModal.vue'
 import { createTutorialController, provideTutorial } from './composables/useTutorial'
 import { hasCompletedTutorial } from './services/tutorialState'
+import { dismissVigemWarning, shouldShowVigemWarning } from './services/vigemWarning'
 const AnalysisStep = defineAsyncComponent(() => import('./components/AnalysisStep.vue'))
 import { 
   Monitor, 
@@ -34,6 +36,7 @@ const connectionStore = useConnectionStore()
 const sessionStore = useSessionStore()
 const isQuitting = ref(false)
 const showHotkeyModal = ref(false)
+const showVigemWarning = ref(false)
 const tutorial = provideTutorial(createTutorialController({
   getPage: () => sessionStore.activeStep,
   setPage: page => { sessionStore.activeStep = page },
@@ -44,6 +47,12 @@ async function startTutorialFromSettings() {
   showHotkeyModal.value = false
   await nextTick()
   tutorial.start('settings')
+}
+
+function closeVigemWarning(neverRemind: boolean) {
+  if (neverRemind) dismissVigemWarning()
+  showVigemWarning.value = false
+  if (!hasCompletedTutorial()) tutorial.start('first-run')
 }
 
 async function toggleController() {
@@ -213,13 +222,14 @@ async function adjustDeadzoneInFrontend(direction: number) {
 }
 
 onMounted(async () => {
-  await connectionStore.checkHealth()
+  const healthCheckSucceeded = await connectionStore.checkHealth()
   sessionStore.initListeners()
   ws.connectEvents()
   ws.connectPreview()
   await sessionStore.loadInitialData()
   await nextTick()
-  if (!hasCompletedTutorial()) tutorial.start('first-run')
+  showVigemWarning.value = shouldShowVigemWarning(healthCheckSucceeded, connectionStore.controllerReady)
+  if (!showVigemWarning.value && !hasCompletedTutorial()) tutorial.start('first-run')
   window.addEventListener('keydown', handleKeyDown)
 })
 
@@ -416,6 +426,7 @@ onUnmounted(() => {
 
     <!-- Measurement Countdown Modal -->
     <CountdownModal />
+    <VigemWarningModal :show="showVigemWarning" @close="closeVigemWarning" />
     <TutorialOverlay />
   </div>
 </template>

@@ -35,6 +35,11 @@ export const messages = {
     quitting: '退出中…',
     toggle_controller_failed: 'ViGEmBus 手柄状态切换失败',
     wake_failed: '手柄唤醒失败',
+    vigem_warning_title: '未检测到 ViGEmBus 驱动',
+    vigem_warning_desc: 'GameCurveProbe 需要 ViGEmBus 来模拟虚拟手柄输出。请下载并安装驱动后重新启动应用。',
+    vigem_download: '前往 ViGEmBus 官方仓库下载',
+    vigem_never_remind: '不再提醒',
+    vigem_continue: '继续使用',
 
     // Controller Wake Inputs
     wake_group_basic: '基础按键',
@@ -373,6 +378,11 @@ export const messages = {
     quitting: 'Quitting…',
     toggle_controller_failed: 'Failed to toggle ViGEmBus controller status',
     wake_failed: 'Failed to wake controller',
+    vigem_warning_title: 'ViGEmBus Driver Not Detected',
+    vigem_warning_desc: 'GameCurveProbe requires ViGEmBus to emulate virtual gamepad output. Download and install the driver, then restart the application.',
+    vigem_download: 'Download from the official ViGEmBus repository',
+    vigem_never_remind: 'Do not remind me again',
+    vigem_continue: 'Continue',
 
     // Controller Wake Inputs
     wake_group_basic: 'Basic Buttons',
