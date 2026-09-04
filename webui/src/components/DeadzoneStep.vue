@@ -8,8 +8,6 @@ import {
   Target, 
   Play, 
   Square, 
-  ArrowLeft, 
-  ArrowRight, 
   Activity, 
   Radio
 } from 'lucide-vue-next'
@@ -134,14 +132,6 @@ async function runNoiseBenchmark() {
     isMeasuringNoise.value = false
   }
 }
-
-function goBack() {
-  sessionStore.activeStep = 1
-}
-
-function proceedToMeasurement() {
-  sessionStore.activeStep = 3
-}
 </script>
 
 <template>
@@ -257,51 +247,28 @@ function proceedToMeasurement() {
       @probe-output="onProbeOutput"
     />
 
-    <!-- Bottom Row: Noise Benchmark & Step Navigation -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-      <!-- Noise Floor Benchmark Card (7 cols) -->
-      <div class="lg:col-span-7 p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 shadow-xs">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-600">
-            <Activity class="w-3.5 h-3.5 text-neutral-700" />
-            <span>{{ t('noise_calibration_title') }}</span>
-          </div>
-          <button
-            type="button"
-            @click="runNoiseBenchmark"
-            :disabled="isMeasuringNoise"
-            class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-3 py-1 rounded-md transition cursor-pointer font-medium"
-          >
-            {{ isMeasuringNoise ? t('noise_measuring') : t('measure_noise') }}
-          </button>
+    <!-- Noise Floor Benchmark Card -->
+    <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 shadow-xs">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-600">
+          <Activity class="w-3.5 h-3.5 text-neutral-700" />
+          <span>{{ t('noise_calibration_title') }}</span>
         </div>
-        <p class="text-[11px] text-neutral-500">
-          {{ t('noise_desc') }}
-        </p>
-        <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
-          <span>{{ t('noise_x') }}: {{ sessionStore.noise.floor_x }} px/s</span>
-          <span>{{ t('noise_y') }}: {{ sessionStore.noise.floor_y }} px/s</span>
-        </div>
+        <button
+          type="button"
+          @click="runNoiseBenchmark"
+          :disabled="isMeasuringNoise"
+          class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-3 py-1.5 rounded-md transition cursor-pointer font-medium"
+        >
+          {{ isMeasuringNoise ? t('noise_measuring') : t('measure_noise') }}
+        </button>
       </div>
-
-      <!-- Navigation Buttons (5 cols) -->
-      <div class="lg:col-span-5 flex items-center space-x-3">
-        <button
-          type="button"
-          @click="goBack"
-          class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
-        >
-          <ArrowLeft class="w-4 h-4" />
-          <span>{{ t('step_1_title') }}</span>
-        </button>
-        <button
-          type="button"
-          @click="proceedToMeasurement"
-          class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs shadow-xs"
-        >
-          <span>{{ t('proceed_to_measurement') }}</span>
-          <ArrowRight class="w-4 h-4" />
-        </button>
+      <p class="text-[11px] text-neutral-500">
+        {{ t('noise_desc') }}
+      </p>
+      <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
+        <span>{{ t('noise_x') }}: {{ sessionStore.noise.floor_x }} px/s</span>
+        <span>{{ t('noise_y') }}: {{ sessionStore.noise.floor_y }} px/s</span>
       </div>
     </div>
   </div>
