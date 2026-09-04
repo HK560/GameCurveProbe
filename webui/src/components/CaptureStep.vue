@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useSessionStore } from '../stores/session'
 import RoiSelector from './RoiSelector.vue'
 import QualityBadge from './QualityBadge.vue'
-import { RefreshCw, Play, Settings2, ShieldAlert } from 'lucide-vue-next'
+import { RefreshCw, Play, Settings2, ShieldAlert, Monitor } from 'lucide-vue-next'
 import type { RoiRect } from '../types/api'
 import { captureErrorMessage, captureModeInfo, type CaptureMode } from '../services/captureModes'
 import { t } from '../services/i18n'
@@ -89,19 +89,36 @@ async function onRoiChange(newRoi: RoiRect) {
 <template>
   <div class="space-y-6">
     <!-- Top Control Bar -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs">
-      <!-- Window Selector -->
-      <div class="lg:col-span-5 space-y-1.5">
-        <div class="flex items-center justify-between">
-          <label class="text-xs font-medium text-neutral-700">{{ t('target_window') }}</label>
-          <button
-            @click="refreshWindows"
-            class="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center space-x-1 cursor-pointer transition"
-          >
-            <RefreshCw class="w-3 h-3" />
-            <span>{{ t('refresh_list') }}</span>
-          </button>
+    <div class="bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs space-y-3">
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-2">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <Monitor class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+              {{ t('target_window') }} &amp; {{ t('capture_engine') }}
+            </h3>
+            <p class="text-[11px] text-neutral-400">
+              {{ t('select_window_signal_hint') }}
+            </p>
+          </div>
         </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+        <!-- Window Selector -->
+        <div class="lg:col-span-5 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-neutral-700">{{ t('target_window') }}</label>
+            <button
+              @click="refreshWindows"
+              class="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center space-x-1 cursor-pointer transition"
+            >
+              <RefreshCw class="w-3 h-3" />
+              <span>{{ t('refresh_list') }}</span>
+            </button>
+          </div>
         <select
           v-model="selectedWindowId"
           @change="onWindowSelect"
@@ -160,6 +177,7 @@ async function onRoiChange(newRoi: RoiRect) {
         </button>
       </div>
     </div>
+  </div>
 
     <div
       v-if="modeInfo.warning"
@@ -196,30 +214,41 @@ async function onRoiChange(newRoi: RoiRect) {
         />
       </div>
 
-      <!-- Right: ROI Diagnostics and Quality Score -->
-      <div class="lg:col-span-4 space-y-4">
-        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-          <Settings2 class="w-3.5 h-3.5" />
-          <span>{{ t('captured_frame_roi') }}</span>
+      <!-- Right: ROI Diagnostics and Quality Score Card -->
+      <div class="lg:col-span-4 bg-white border border-neutral-200/80 rounded-xl p-4 shadow-xs space-y-4">
+        <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+              <Settings2 class="w-4 h-4" />
+            </div>
+            <div>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+                {{ t('captured_frame_roi') }}
+              </h3>
+              <p class="text-[11px] text-neutral-400">
+                {{ t('roi_instruction') }}
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- Quality Badge and Progress -->
         <QualityBadge :quality="roiQuality" />
 
         <!-- Coordinate Display -->
-        <div v-if="sessionStore.roi" class="bg-white p-3.5 rounded-xl border border-neutral-200/80 space-y-2">
-          <div class="text-xs font-medium text-neutral-700">{{ t('roi_size_info') }}</div>
+        <div v-if="sessionStore.roi" class="p-3 bg-neutral-50 rounded-lg border border-neutral-200/60 space-y-2">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-700">{{ t('roi_size_info') }}</div>
           <div class="grid grid-cols-2 gap-2 text-xs font-mono text-neutral-600">
-            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+            <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
               <span class="text-neutral-400">X:</span> {{ sessionStore.roi.x }} px
             </div>
-            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+            <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
               <span class="text-neutral-400">Y:</span> {{ sessionStore.roi.y }} px
             </div>
-            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+            <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
               <span class="text-neutral-400">{{ t('width_label') }}:</span> {{ sessionStore.roi.width }} px
             </div>
-            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+            <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
               <span class="text-neutral-400">{{ t('height_label') }}:</span> {{ sessionStore.roi.height }} px
             </div>
           </div>

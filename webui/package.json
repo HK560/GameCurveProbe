@@ -20,6 +20,7 @@
     "@tailwindcss/vite": "^4.0.9",
     "@types/node": "^22.13.5",
     "@vitejs/plugin-vue": "^5.2.1",
+    "code-inspector-plugin": "^2.0.8",
     "tailwindcss": "^4.0.9",
     "typescript": "^5.7.3",
     "vite": "^6.2.0",

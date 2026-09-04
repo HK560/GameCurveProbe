@@ -212,14 +212,19 @@ async function cancelMeasurement() {
   <div class="space-y-6">
     <!-- Config Bar -->
     <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
-      <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
-        <div class="flex items-center space-x-2">
-          <Sliders class="w-3.5 h-3.5 text-neutral-700" />
-          <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('measurement_param_config') }}</span>
-        </div>
-        <div class="text-xs text-neutral-400">
-          {{ t('base_on_deadzone') }}: {{ t('inner_deadzone') }} {{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}%, 
-          {{ t('outer_deadzone') }} {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <Sliders class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+              {{ t('measurement_param_config') }}
+            </h3>
+            <p class="text-[11px] text-neutral-400">
+              {{ t('base_on_deadzone') }}: {{ t('inner_deadzone') }} {{ ((sessionStore.config?.inner_deadzone || 0) * 100).toFixed(1) }}%, {{ t('outer_deadzone') }} {{ ((sessionStore.config?.outer_deadzone || 1) * 100).toFixed(1) }}%
+            </p>
+          </div>
         </div>
       </div>
 
@@ -359,10 +364,19 @@ async function cancelMeasurement() {
       <!-- Left Column: Live Screen Viewport with ROI Overlay -->
       <div class="lg:col-span-6 space-y-3">
         <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
-          <div class="flex items-center justify-between border-b border-neutral-100 pb-2.5">
-            <div class="flex items-center space-x-2">
-              <Camera class="w-3.5 h-3.5 text-neutral-700" />
-              <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('live_viewport_title') }}</span>
+          <div class="flex items-center justify-between border-b border-neutral-100 pb-2.5 flex-wrap gap-2">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+                <Camera class="w-4 h-4" />
+              </div>
+              <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+                  {{ t('live_viewport_title') }}
+                </h3>
+                <p class="text-[11px] text-neutral-400 font-mono">
+                  {{ sessionStore.capture ? `${sessionStore.capture.width}×${sessionStore.capture.height} @ ${sessionStore.capture.target_fps}Hz` : t('no_signal_preview') }}
+                </p>
+              </div>
             </div>
             <div class="flex items-center space-x-2 text-xs">
               <span
@@ -435,12 +449,12 @@ async function cancelMeasurement() {
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2.5">
               <div
-                class="w-7 h-7 rounded-lg flex items-center justify-center transition-colors bg-neutral-100 text-neutral-900"
+                class="w-7 h-7 rounded-lg flex items-center justify-center transition-colors bg-neutral-100 text-neutral-900 shrink-0"
               >
                 <Activity class="w-4 h-4" :class="{ 'animate-pulse text-neutral-900': isRunning }" />
               </div>
               <div>
-                <h4 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('current_progress') }}</h4>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('current_progress') }}</h3>
                 <p class="text-[11px] text-neutral-400 font-mono">{{ phaseText }}</p>
               </div>
             </div>
@@ -473,13 +487,22 @@ async function cancelMeasurement() {
         <!-- Terminal-Style Log Console -->
         <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 relative shadow-xs">
           <!-- Terminal Toolbar -->
-          <div class="flex items-center justify-between border-b border-neutral-100 pb-2">
-            <div class="flex items-center space-x-2">
-              <Terminal class="w-3.5 h-3.5 text-neutral-700" />
-              <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('measurement_logs') }}</span>
-              <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-neutral-100 text-neutral-500 font-mono">
-                {{ sessionStore.measurementLogs.length }}
-              </span>
+          <div class="flex items-center justify-between border-b border-neutral-100 pb-2 flex-wrap gap-2">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+                <Terminal class="w-4 h-4" />
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('measurement_logs') }}</h3>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-neutral-100 text-neutral-500 font-mono">
+                    {{ sessionStore.measurementLogs.length }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-neutral-400 font-mono">
+                  {{ isRunning ? t('running_status') : t('ready_status') }}
+                </p>
+              </div>
             </div>
 
             <div class="flex items-center space-x-1.5">
@@ -556,15 +579,19 @@ async function cancelMeasurement() {
 
     <!-- Measured Points Real-time Table / Summary -->
     <div v-if="displayPoints && displayPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <CheckCircle2 class="w-4 h-4 text-neutral-900" />
-          <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">
-            {{ t('sampling_record_title') }}
-            <span class="text-neutral-400 font-normal">
-              ({{ displayPoints.length }} / {{ totalPoints }} {{ t('points_suffix') }}{{ isRunning ? ' · ' + t('realtime_appending') : '' }})
-            </span>
-          </span>
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-2">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <CheckCircle2 class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+              {{ t('sampling_record_title') }}
+            </h3>
+            <p class="text-[11px] text-neutral-400 font-mono">
+              {{ displayPoints.length }} / {{ totalPoints }} {{ t('points_suffix') }}{{ isRunning ? ' · ' + t('realtime_appending') : '' }}
+            </p>
+          </div>
         </div>
         <span class="text-[11px] text-neutral-400 font-mono">
           {{ isRunning ? t('realtime_appending') : `${t('measurement_completed')}: ${lastResult?.measured_at || t('just_now')}` }}

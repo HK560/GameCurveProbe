@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import type { RoiRect } from '../types/api'
 import { t } from '../services/i18n'
 
@@ -14,14 +14,27 @@ const emit = defineEmits<{
   (e: 'update:roi', roi: RoiRect): void
 }>()
 
-const containerRef = ref<HTMLDivElement | null>(null)
+const stageRef = ref<HTMLDivElement | null>(null)
 const isDragging = ref(false)
 const dragStart = reactive({ x: 0, y: 0 })
 const tempRoi = ref<RoiRect | null>(null)
 
+const activeRoi = computed(() => tempRoi.value || props.currentRoi)
+
+const stageStyle = computed(() => {
+  const w = props.imageWidth || 1920
+  const h = props.imageHeight || 1080
+  return {
+    aspectRatio: `${w} / ${h}`,
+    width: '100%',
+  }
+})
+
 function getImgCoords(clientX: number, clientY: number): { x: number; y: number } | null {
-  if (!containerRef.value || !props.imageWidth || !props.imageHeight) return null
-  const rect = containerRef.value.getBoundingClientRect()
+  if (!stageRef.value || !props.imageWidth || !props.imageHeight) return null
+  const rect = stageRef.value.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+
   const relX = clientX - rect.left
   const relY = clientY - rect.top
 
@@ -34,10 +47,17 @@ function getImgCoords(clientX: number, clientY: number): { x: number; y: number 
   return { x: imgX, y: imgY }
 }
 
-function onMouseDown(e: MouseEvent) {
-  if (!props.imageUrl) return
+function onPointerDown(e: PointerEvent) {
+  if (!props.imageUrl || !stageRef.value) return
   const coords = getImgCoords(e.clientX, e.clientY)
   if (!coords) return
+
+  const target = e.currentTarget as HTMLElement
+  try {
+    target.setPointerCapture(e.pointerId)
+  } catch {
+    // ignore
+  }
 
   isDragging.value = true
   dragStart.x = coords.x
@@ -50,7 +70,7 @@ function onMouseDown(e: MouseEvent) {
   }
 }
 
-function onMouseMove(e: MouseEvent) {
+function onPointerMove(e: PointerEvent) {
   if (!isDragging.value) return
   const coords = getImgCoords(e.clientX, e.clientY)
   if (!coords) return
@@ -74,55 +94,71 @@ function onMouseMove(e: MouseEvent) {
   }
 }
 
-function onMouseUp() {
-  if (isDragging.value && tempRoi.value) {
+function onPointerUp(e: PointerEvent) {
+  if (isDragging.value) {
+    try {
+      const target = e.currentTarget as HTMLElement
+      if (target.hasPointerCapture(e.pointerId)) {
+        target.releasePointerCapture(e.pointerId)
+      }
+    } catch {
+      // ignore
+    }
     isDragging.value = false
-    emit('update:roi', tempRoi.value)
-    tempRoi.value = null
+    if (tempRoi.value) {
+      emit('update:roi', tempRoi.value)
+      tempRoi.value = null
+    }
   }
 }
 </script>
 
 <template>
   <div
-    ref="containerRef"
-    class="relative w-full overflow-hidden rounded-xl bg-neutral-950 select-none cursor-crosshair border border-neutral-200/80 flex items-center justify-center min-h-[300px]"
-    @mousedown="onMouseDown"
-    @mousemove="onMouseMove"
-    @mouseup="onMouseUp"
-    @mouseleave="onMouseUp"
+    class="relative w-full overflow-hidden rounded-xl bg-neutral-950 select-none border border-neutral-200/80 flex items-center justify-center min-h-[300px]"
   >
-    <!-- Background Preview Image -->
-    <img
-      v-if="imageUrl"
-      :src="imageUrl"
-      alt="Preview"
-      class="w-full h-full object-contain pointer-events-none"
-    />
-    <div v-else class="text-neutral-500 text-xs flex flex-col items-center">
-      <p>{{ t('no_signal_preview') }}</p>
-      <p class="text-[11px] text-neutral-600 mt-1">{{ t('select_window_signal_hint') }}</p>
-    </div>
-
-    <!-- Active/Temp ROI Overlay Box -->
+    <!-- Stage exactly matches the image aspect ratio to prevent letterbox coordinate desync -->
     <div
-      v-if="(tempRoi || currentRoi) && imageWidth && imageHeight"
-      class="absolute border-2 border-white bg-white/10 pointer-events-none transition-all duration-75"
-      :style="{
-        left: `${(((tempRoi || currentRoi)!.x) / imageWidth) * 100}%`,
-        top: `${(((tempRoi || currentRoi)!.y) / imageHeight) * 100}%`,
-        width: `${(((tempRoi || currentRoi)!.width) / imageWidth) * 100}%`,
-        height: `${(((tempRoi || currentRoi)!.height) / imageHeight) * 100}%`,
-      }"
+      ref="stageRef"
+      class="relative cursor-crosshair select-none flex items-center justify-center max-w-full max-h-full"
+      :style="stageStyle"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
     >
-      <div class="absolute -top-6 left-0 bg-neutral-900 text-white text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-700 shadow-sm">
-        ROI: {{ (tempRoi || currentRoi)!.width }}×{{ (tempRoi || currentRoi)!.height }}
+      <!-- Background Preview Image -->
+      <img
+        v-if="imageUrl"
+        :src="imageUrl"
+        alt="Preview"
+        class="w-full h-full block object-contain pointer-events-none select-none"
+      />
+      <div v-else class="text-neutral-500 text-xs flex flex-col items-center py-16 px-4">
+        <p>{{ t('no_signal_preview') }}</p>
+        <p class="text-[11px] text-neutral-600 mt-1">{{ t('select_window_signal_hint') }}</p>
       </div>
-      <!-- Corner Markers -->
-      <div class="absolute -top-1 -left-1 w-1.5 h-1.5 bg-white rounded-full"></div>
-      <div class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-white rounded-full"></div>
-      <div class="absolute -bottom-1 -left-1 w-1.5 h-1.5 bg-white rounded-full"></div>
-      <div class="absolute -bottom-1 -right-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+
+      <!-- Active/Temp ROI Overlay Box (No transition delay, 1:1 follow cursor) -->
+      <div
+        v-if="activeRoi && imageWidth && imageHeight"
+        class="absolute border-2 border-white bg-white/10 pointer-events-none transition-none shadow-sm"
+        :style="{
+          left: `${(activeRoi.x / imageWidth) * 100}%`,
+          top: `${(activeRoi.y / imageHeight) * 100}%`,
+          width: `${(activeRoi.width / imageWidth) * 100}%`,
+          height: `${(activeRoi.height / imageHeight) * 100}%`,
+        }"
+      >
+        <div class="absolute -top-6 left-0 bg-neutral-900 text-white text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-700 shadow-sm whitespace-nowrap">
+          ROI: {{ activeRoi.width }}×{{ activeRoi.height }}
+        </div>
+        <!-- Corner Markers -->
+        <div class="absolute -top-1 -left-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+        <div class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+        <div class="absolute -bottom-1 -left-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+        <div class="absolute -bottom-1 -right-1 w-1.5 h-1.5 bg-white rounded-full"></div>
+      </div>
     </div>
   </div>
 </template>

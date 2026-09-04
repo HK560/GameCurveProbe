@@ -57,7 +57,7 @@ const getSuggestionText = (sug: string) => {
 </script>
 
 <template>
-  <div v-if="quality" class="p-4 rounded-xl border border-neutral-200/80 bg-white">
+  <div v-if="quality" class="p-3.5 rounded-lg border border-neutral-200/60 bg-neutral-50/60">
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center space-x-2">
         <component :is="levelConfig.icon" class="w-4 h-4 text-neutral-800" />
