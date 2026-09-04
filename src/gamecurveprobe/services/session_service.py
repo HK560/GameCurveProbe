@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import copy
+import json
+import logging
 import threading
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import asdict, fields, replace
+from pathlib import Path
 from uuid import uuid4
 
 from gamecurveprobe.models import (
@@ -11,19 +14,31 @@ from gamecurveprobe.models import (
     JobSnapshot,
     NoiseResult,
     ProbeConfig,
+    RangeMode,
     RoiQuality,
     RoiRect,
     SessionResult,
     SessionSnapshot,
 )
 
+logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIG_DIR = Path.home() / ".gamecurveprobe"
+DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.json"
+
 
 class SessionService:
-    """Owns authoritative in-memory session configuration and state."""
+    """Owns authoritative in-memory session configuration and state with local persistence."""
 
-    def __init__(self, session_id: str | None = None) -> None:
+    def __init__(
+        self,
+        session_id: str | None = None,
+        config: ProbeConfig | None = None,
+        config_path: Path | None = None,
+    ) -> None:
         self._session_id = session_id or uuid4().hex[:12]
-        self._config = ProbeConfig()
+        self._config_path = config_path
+        self._config = config or self._load_persisted_config() or ProbeConfig()
         self._roi: RoiRect | None = None
         self._capture: CaptureInfo | None = None
         self._roi_quality: RoiQuality | None = None
@@ -32,6 +47,40 @@ class SessionService:
         self._last_result: SessionResult | None = None
         self._noise: NoiseResult | None = None
         self._lock = threading.RLock()
+
+    def _load_persisted_config(self) -> ProbeConfig | None:
+        if not self._config_path or not self._config_path.exists():
+            return None
+        try:
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                valid_field_names = {f.name for f in fields(ProbeConfig)}
+                filtered: dict[str, object] = {}
+                for k, v in data.items():
+                    if k in valid_field_names:
+                        if k == "range_mode" and isinstance(v, str):
+                            try:
+                                v = RangeMode(v)
+                            except ValueError:
+                                continue
+                        filtered[k] = v
+                cfg = ProbeConfig(**filtered)
+                cfg.validate()
+                return cfg
+        except Exception as exc:
+            logger.warning("Failed to load persistent config from %s: %s", self._config_path, exc)
+            return None
+
+    def _save_persisted_config(self) -> None:
+        if not self._config_path:
+            return
+        try:
+            self._config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._config_path, "w", encoding="utf-8") as f:
+                json.dump(asdict(self._config), f, indent=2, ensure_ascii=False)
+        except Exception as exc:
+            logger.warning("Failed to save persistent config to %s: %s", self._config_path, exc)
 
     @property
     def id(self) -> str:
@@ -46,6 +95,7 @@ class SessionService:
             candidate = replace(self._config, **changes)
             candidate.validate()
             self._config = candidate
+            self._save_persisted_config()
             return copy.deepcopy(candidate)
 
     def update_roi(self, roi: RoiRect | None) -> RoiRect | None:

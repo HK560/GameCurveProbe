@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 import pytest
 
 from gamecurveprobe.errors import DomainError
@@ -65,3 +66,35 @@ def test_session_snapshot_is_immutable_copy() -> None:
     service.update_roi(RoiRect(30, 40, 200, 200))
     assert snapshot.roi == RoiRect(10, 20, 100, 100)
     assert service.snapshot().roi == RoiRect(30, 40, 200, 200)
+
+
+def test_session_service_persists_and_reloads_config(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "test_config.json"
+    s1 = SessionService(config_path=cfg_file)
+    assert s1.config_snapshot().hotkey_start == "F9"
+    assert s1.config_snapshot().wake_input == "right_stick"
+
+    # Update config with custom preferences
+    s1.update_config({
+        "hotkey_start": "F8",
+        "hotkey_stop": "F12",
+        "auto_wake": False,
+        "wake_input": "left_stick",
+        "sound_enabled": False,
+        "inner_deadzone": 0.08,
+        "range_mode": RangeMode.FULL,
+    })
+
+    assert cfg_file.exists()
+
+    # Create new session service pointing to the same file to verify automatic loading
+    s2 = SessionService(config_path=cfg_file)
+    loaded = s2.config_snapshot()
+    assert loaded.hotkey_start == "F8"
+    assert loaded.hotkey_stop == "F12"
+    assert loaded.auto_wake is False
+    assert loaded.wake_input == "left_stick"
+    assert loaded.sound_enabled is False
+    assert loaded.inner_deadzone == 0.08
+    assert loaded.range_mode == RangeMode.FULL
+

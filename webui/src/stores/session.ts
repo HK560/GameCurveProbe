@@ -19,8 +19,33 @@ import type {
   WindowInfo,
 } from '../types/api'
 
+export const STORAGE_CONFIG_KEY = 'gamecurveprobe_config'
+
+export function getLocalConfig(): Partial<ProbeConfig> | null {
+  if (typeof localStorage === 'undefined' || !localStorage.getItem) return null
+  try {
+    const raw = localStorage.getItem(STORAGE_CONFIG_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (err) {
+    console.warn('Failed to read config from localStorage:', err)
+    return null
+  }
+}
+
+export function saveLocalConfig(config: Partial<ProbeConfig>) {
+  if (typeof localStorage === 'undefined' || !localStorage.setItem) return
+  try {
+    const existing = getLocalConfig() || {}
+    const merged = { ...existing, ...config }
+    localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(merged))
+  } catch (err) {
+    console.warn('Failed to save config to localStorage:', err)
+  }
+}
+
 export const useSessionStore = defineStore('session', () => {
   const session = ref<SessionSnapshot | null>(null)
+  const localConfig = ref<Partial<ProbeConfig> | null>(getLocalConfig())
   const windows = ref<WindowInfo[]>([])
   const probe = ref<ProbeSnapshot | null>(null)
   const activeStep = ref<number>(1)
@@ -43,7 +68,14 @@ export const useSessionStore = defineStore('session', () => {
   const lastJob = computed(() => internalLastJob.value ?? session.value?.last_job ?? null)
   const lastResult = computed(() => internalLastResult.value ?? session.value?.last_result ?? null)
   const capture = computed(() => internalCapture.value ?? session.value?.capture ?? null)
-  const config = computed(() => session.value?.config ?? null)
+  const config = computed(() => {
+    const backendConfig = session.value?.config
+    const local = localConfig.value
+    if (backendConfig && local) {
+      return { ...backendConfig, ...local }
+    }
+    return backendConfig ?? (local as ProbeConfig | null) ?? null
+  })
   const roi = computed(() => session.value?.roi ?? null)
   const roiQuality = computed(() => session.value?.roi_quality ?? null)
   const noise = computed(() => internalNoise.value ?? session.value?.noise ?? null)
@@ -61,6 +93,24 @@ export const useSessionStore = defineStore('session', () => {
     } catch (err) {
       console.warn('Failed to load session:', err)
     }
+
+    // Auto-restore saved user preferences from local storage
+    const saved = getLocalConfig()
+    if (saved && Object.keys(saved).length > 0) {
+      localConfig.value = saved
+      if (session.value?.config) {
+        session.value.config = { ...session.value.config, ...saved }
+      }
+      try {
+        const synced = await api.updateConfig(saved)
+        if (synced) {
+          session.value = synced
+        }
+      } catch {
+        // Backend offline or standalone mode, local config remains active
+      }
+    }
+
     await fetchWindows()
   }
 
@@ -99,7 +149,15 @@ export const useSessionStore = defineStore('session', () => {
   async function updateConfig(changes: Partial<ProbeConfig>) {
     isUpdatingConfig.value = true
     try {
-      session.value = await api.updateConfig(changes)
+      saveLocalConfig(changes)
+      localConfig.value = getLocalConfig()
+      try {
+        session.value = await api.updateConfig(changes)
+      } catch (err) {
+        if (session.value?.config) {
+          session.value.config = { ...session.value.config, ...changes }
+        }
+      }
       return session.value
     } finally {
       isUpdatingConfig.value = false

@@ -24,7 +24,8 @@ export const messages = {
     connected: '服务已连接',
     disconnected: '未连接',
     no_window_captured: '未抓取窗口',
-    hotkeys_and_sound: '快捷键 & 音效',
+    settings: '设置',
+    hotkeys_and_sound: '设置',
     controller_enable: 'ViGEmBus 虚拟手柄使能',
     wake_key: '唤醒按键',
     test_wake: '测试唤醒',
@@ -297,7 +298,7 @@ export const messages = {
     chart_tooltip_invalid: '该点追踪无效 (特征丢失或微动不足)',
 
     // Modals
-    hotkey_settings_title: '快捷键与提示音效设置',
+    hotkey_settings_title: '设置',
     hotkey_enabled: '启用全局快捷键',
     hotkey_start_label: '开始测定快捷键',
     hotkey_stop_label: '停止测定快捷键',
@@ -357,7 +358,8 @@ export const messages = {
     connected: 'Service Connected',
     disconnected: 'Disconnected',
     no_window_captured: 'No Window Captured',
-    hotkeys_and_sound: 'Hotkeys & Audio',
+    settings: 'Settings',
+    hotkeys_and_sound: 'Settings',
     controller_enable: 'ViGEmBus Controller Enabled',
     wake_key: 'Wake Key',
     test_wake: 'Test Wake',
@@ -630,7 +632,7 @@ export const messages = {
     chart_tooltip_invalid: 'Tracking invalid at this point (feature lost or motion too small)',
 
     // Modals
-    hotkey_settings_title: 'Hotkey & Audio Settings',
+    hotkey_settings_title: 'Settings',
     hotkey_enabled: 'Enable Global Hotkeys',
     hotkey_start_label: 'Start Hotkey',
     hotkey_stop_label: 'Stop Hotkey',
