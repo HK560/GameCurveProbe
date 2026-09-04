@@ -84,19 +84,50 @@ async function autoWakeIfNeeded() {
   }
 }
 
-async function onInnerUpdate(val: number) {
-  await autoWakeIfNeeded()
-  await sessionStore.updateConfig({ inner_deadzone: val })
-  if (probeActive.value && activeProbeTarget.value === 'inner') {
-    await sessionStore.updateDeadzoneProbe(val)
+let configDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let pendingConfigChanges: Partial<any> = {}
+
+function scheduleConfigUpdate(changes: Record<string, any>, immediate = false) {
+  pendingConfigChanges = { ...pendingConfigChanges, ...changes }
+  if (configDebounceTimer) {
+    clearTimeout(configDebounceTimer)
+    configDebounceTimer = null
+  }
+  const flush = async () => {
+    const toSave = { ...pendingConfigChanges }
+    pendingConfigChanges = {}
+    await autoWakeIfNeeded()
+    await sessionStore.updateConfig(toSave)
+  }
+  if (immediate) {
+    void flush()
+  } else {
+    configDebounceTimer = setTimeout(flush, 150)
   }
 }
 
+async function onInnerUpdate(val: number) {
+  if (sessionStore.config) {
+    sessionStore.config.inner_deadzone = val
+  }
+  scheduleConfigUpdate({ inner_deadzone: val }, false)
+}
+
 async function onOuterUpdate(val: number) {
-  await autoWakeIfNeeded()
-  await sessionStore.updateConfig({ outer_deadzone: val })
-  if (probeActive.value && activeProbeTarget.value === 'outer') {
-    await sessionStore.updateDeadzoneProbe(val)
+  if (sessionStore.config) {
+    sessionStore.config.outer_deadzone = val
+  }
+  scheduleConfigUpdate({ outer_deadzone: val }, false)
+}
+
+async function onSliderChange(payload: { inner: number; outer: number; target: 'inner' | 'outer' }) {
+  scheduleConfigUpdate({
+    inner_deadzone: payload.inner,
+    outer_deadzone: payload.outer,
+  }, true)
+  if (probeActive.value) {
+    const output = payload.target === 'inner' ? payload.inner : payload.outer
+    await sessionStore.updateDeadzoneProbe(output)
   }
 }
 
@@ -108,13 +139,30 @@ async function onRangeModeUpdate(mode: RangeMode) {
   await sessionStore.updateConfig({ range_mode: mode })
 }
 
-async function onProbeOutput(val: number) {
-  if (probeActive.value) {
-    await sessionStore.updateDeadzoneProbe(val)
-  }
+let pendingProbeVal: number | null = null
+let probeRaf: number | null = null
+
+function onProbeOutput(val: number) {
+  if (!probeActive.value) return
+  pendingProbeVal = val
+  if (probeRaf !== null) return
+  probeRaf = requestAnimationFrame(async () => {
+    probeRaf = null
+    if (pendingProbeVal !== null && probeActive.value) {
+      const out = pendingProbeVal
+      pendingProbeVal = null
+      try {
+        await sessionStore.updateDeadzoneProbe(out)
+      } catch {
+        // ignore
+      }
+    }
+  })
 }
 
 onBeforeUnmount(() => {
+  if (configDebounceTimer) clearTimeout(configDebounceTimer)
+  if (probeRaf !== null) cancelAnimationFrame(probeRaf)
   if (probeActive.value) {
     void probeLease.dispose()
   } else {
@@ -140,7 +188,7 @@ async function runNoiseBenchmark() {
     <div class="p-4 bg-white border border-neutral-200/80 rounded-xl shadow-xs space-y-4">
       <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
         <div class="flex items-center space-x-2.5">
-          <div class="w-8 h-8 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
             <Target class="w-4 h-4" />
           </div>
           <div>
@@ -245,27 +293,34 @@ async function runNoiseBenchmark() {
       @update:range-mode="onRangeModeUpdate"
       @update:active-probe-target="selectProbeTarget"
       @probe-output="onProbeOutput"
+      @change="onSliderChange"
     />
 
     <!-- Noise Floor Benchmark Card -->
-    <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 shadow-xs">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-600">
-          <Activity class="w-3.5 h-3.5 text-neutral-700" />
-          <span>{{ t('noise_calibration_title') }}</span>
+    <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <Activity class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+              {{ t('noise_calibration_title') }}
+            </h3>
+            <p class="text-[11px] text-neutral-400">
+              {{ t('noise_desc') }}
+            </p>
+          </div>
         </div>
         <button
           type="button"
           @click="runNoiseBenchmark"
           :disabled="isMeasuringNoise"
-          class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-3 py-1.5 rounded-md transition cursor-pointer font-medium"
+          class="text-xs bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition cursor-pointer font-medium shadow-xs"
         >
           {{ isMeasuringNoise ? t('noise_measuring') : t('measure_noise') }}
         </button>
       </div>
-      <p class="text-[11px] text-neutral-500">
-        {{ t('noise_desc') }}
-      </p>
       <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
         <span>{{ t('noise_x') }}: {{ sessionStore.noise.floor_x }} px/s</span>
         <span>{{ t('noise_y') }}: {{ sessionStore.noise.floor_y }} px/s</span>

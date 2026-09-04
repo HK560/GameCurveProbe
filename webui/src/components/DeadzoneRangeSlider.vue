@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { t } from '../services/i18n'
 import { 
   Minus, 
@@ -35,15 +35,38 @@ const emit = defineEmits<{
   (e: 'update:rangeMode', mode: RangeMode): void
   (e: 'update:activeProbeTarget', target: 'inner' | 'outer'): void
   (e: 'probeOutput', val: number): void
+  (e: 'change', payload: { inner: number; outer: number; target: 'inner' | 'outer' }): void
 }>()
 
 const railRef = ref<HTMLElement | null>(null)
 const dragging = ref<'inner' | 'outer' | null>(null)
 const hoveredPointIndex = ref<number | null>(null)
 
-// Ensure valid deadzone bounds
-const safeInner = computed(() => Math.max(0.0, Math.min(props.innerDeadzone, 0.99)))
-const safeOuter = computed(() => Math.max(safeInner.value + 0.01, Math.min(props.outerDeadzone, 1.0)))
+// Local state for 60/120Hz synchronous hardware-level tracking during drag
+const localInner = ref<number>(props.innerDeadzone)
+const localOuter = ref<number>(props.outerDeadzone)
+
+watch(
+  () => props.innerDeadzone,
+  (val) => {
+    if (!dragging.value) {
+      localInner.value = val
+    }
+  }
+)
+
+watch(
+  () => props.outerDeadzone,
+  (val) => {
+    if (!dragging.value) {
+      localOuter.value = val
+    }
+  }
+)
+
+// Ensure valid deadzone bounds using local responsive state
+const safeInner = computed(() => Math.max(0.0, Math.min(localInner.value, 0.99)))
+const safeOuter = computed(() => Math.max(safeInner.value + 0.01, Math.min(localOuter.value, 1.0)))
 const activeSpan = computed(() => Math.max(0.0, safeOuter.value - safeInner.value))
 
 // Sampling points calculation (matches backend ProbeConfig.point_values)
@@ -74,8 +97,10 @@ function roundVal(v: number): number {
 
 function adjustInner(delta: number) {
   const next = roundVal(Math.max(0.0, Math.min(safeOuter.value - 0.01, safeInner.value + delta)))
+  localInner.value = next
   emit('update:innerDeadzone', next)
   emit('update:activeProbeTarget', 'inner')
+  emit('change', { inner: next, outer: safeOuter.value, target: 'inner' })
   if (props.probeActive) {
     emit('probeOutput', next)
   }
@@ -83,8 +108,10 @@ function adjustInner(delta: number) {
 
 function adjustOuter(delta: number) {
   const next = roundVal(Math.max(safeInner.value + 0.01, Math.min(1.0, safeOuter.value + delta)))
+  localOuter.value = next
   emit('update:outerDeadzone', next)
   emit('update:activeProbeTarget', 'outer')
+  emit('change', { inner: safeInner.value, outer: next, target: 'outer' })
   if (props.probeActive) {
     emit('probeOutput', next)
   }
@@ -95,7 +122,9 @@ function onInnerInput(e: Event) {
   let val = parseFloat(target.value) / 100
   if (isNaN(val)) return
   val = roundVal(Math.max(0.0, Math.min(safeOuter.value - 0.01, val)))
+  localInner.value = val
   emit('update:innerDeadzone', val)
+  emit('change', { inner: val, outer: safeOuter.value, target: 'inner' })
   if (props.probeActive && props.activeProbeTarget === 'inner') {
     emit('probeOutput', val)
   }
@@ -106,7 +135,9 @@ function onOuterInput(e: Event) {
   let val = parseFloat(target.value) / 100
   if (isNaN(val)) return
   val = roundVal(Math.max(safeInner.value + 0.01, Math.min(1.0, val)))
+  localOuter.value = val
   emit('update:outerDeadzone', val)
+  emit('change', { inner: safeInner.value, outer: val, target: 'outer' })
   if (props.probeActive && props.activeProbeTarget === 'outer') {
     emit('probeOutput', val)
   }
@@ -137,12 +168,14 @@ function onPointerMove(e: PointerEvent) {
 
   if (dragging.value === 'inner') {
     const clamped = Math.min(safeOuter.value - 0.01, Math.max(0.0, frac))
+    localInner.value = clamped
     emit('update:innerDeadzone', clamped)
     if (props.probeActive) {
       emit('probeOutput', clamped)
     }
   } else if (dragging.value === 'outer') {
     const clamped = Math.max(safeInner.value + 0.01, Math.min(1.0, frac))
+    localOuter.value = clamped
     emit('update:outerDeadzone', clamped)
     if (props.probeActive) {
       emit('probeOutput', clamped)
@@ -151,7 +184,14 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp() {
-  dragging.value = null
+  if (dragging.value) {
+    emit('change', {
+      inner: safeInner.value,
+      outer: safeOuter.value,
+      target: dragging.value,
+    })
+    dragging.value = null
+  }
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('pointercancel', onPointerUp)
@@ -166,15 +206,19 @@ function onTrackClick(e: MouseEvent) {
 
   if (distInner <= distOuter) {
     const clamped = roundVal(Math.min(safeOuter.value - 0.01, Math.max(0.0, frac)))
+    localInner.value = clamped
     emit('update:innerDeadzone', clamped)
     emit('update:activeProbeTarget', 'inner')
+    emit('change', { inner: clamped, outer: safeOuter.value, target: 'inner' })
     if (props.probeActive) {
       emit('probeOutput', clamped)
     }
   } else {
     const clamped = roundVal(Math.max(safeInner.value + 0.01, Math.min(1.0, frac)))
+    localOuter.value = clamped
     emit('update:outerDeadzone', clamped)
     emit('update:activeProbeTarget', 'outer')
+    emit('change', { inner: safeInner.value, outer: clamped, target: 'outer' })
     if (props.probeActive) {
       emit('probeOutput', clamped)
     }
@@ -193,7 +237,7 @@ onBeforeUnmount(() => {
     <!-- Header with Active Range Badge -->
     <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
       <div class="flex items-center space-x-2.5">
-        <div class="w-7 h-7 rounded-lg bg-neutral-900 text-white flex items-center justify-center">
+        <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
           <Sliders class="w-4 h-4" />
         </div>
         <div>
@@ -376,7 +420,7 @@ onBeforeUnmount(() => {
 
         <!-- Region 2: Active Detection Range -->
         <div 
-          class="absolute top-0 bottom-0 bg-neutral-900 shadow-sm flex items-center justify-center transition-all duration-75"
+          class="absolute top-0 bottom-0 bg-neutral-900 shadow-sm flex items-center justify-center"
           :style="{
             left: `${safeInner * 100}%`,
             width: `${activeSpan * 100}%`
@@ -401,7 +445,7 @@ onBeforeUnmount(() => {
         <div 
           v-for="(pt, idx) in samplingPoints"
           :key="idx"
-          class="absolute top-1 bottom-1 w-0.5 -ml-[1px] transition-all duration-100 pointer-events-none z-10"
+          class="absolute top-1 bottom-1 w-0.5 -ml-[1px] pointer-events-none z-10"
           :class="[
             hoveredPointIndex === idx 
               ? 'bg-amber-400 w-1 -ml-[2px] z-20' 
@@ -423,11 +467,12 @@ onBeforeUnmount(() => {
         <!-- Thumb 1: Inner Deadzone Handle -->
         <div
           @pointerdown="startDrag('inner', $event)"
-          class="absolute top-1/2 -translate-y-1/2 -ml-3.5 w-7 h-7 rounded-full bg-white border-2 shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-20 transition-transform duration-75 hover:scale-110"
+          class="absolute top-1/2 -translate-y-1/2 -ml-3.5 w-7 h-7 rounded-full bg-white border-2 shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-20 hover:scale-110"
           :class="[
             activeProbeTarget === 'inner' 
               ? 'border-neutral-900 ring-2 ring-neutral-900/30' 
-              : 'border-neutral-700'
+              : 'border-neutral-700',
+            dragging ? 'transition-none' : 'transition-transform duration-75'
           ]"
           :style="{ left: `${safeInner * 100}%` }"
           :title="t('inner_deadzone')"
@@ -442,11 +487,12 @@ onBeforeUnmount(() => {
         <!-- Thumb 2: Outer Deadzone Handle -->
         <div
           @pointerdown="startDrag('outer', $event)"
-          class="absolute top-1/2 -translate-y-1/2 -ml-3.5 w-7 h-7 rounded-full bg-white border-2 shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-20 transition-transform duration-75 hover:scale-110"
+          class="absolute top-1/2 -translate-y-1/2 -ml-3.5 w-7 h-7 rounded-full bg-white border-2 shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-20 hover:scale-110"
           :class="[
             activeProbeTarget === 'outer' 
               ? 'border-neutral-900 ring-2 ring-neutral-900/30' 
-              : 'border-neutral-700'
+              : 'border-neutral-700',
+            dragging ? 'transition-none' : 'transition-transform duration-75'
           ]"
           :style="{ left: `${safeOuter * 100}%` }"
           :title="t('outer_deadzone')"
@@ -463,12 +509,18 @@ onBeforeUnmount(() => {
     <!-- Predicted Sampling Points Details Section -->
     <div class="pt-5 border-t border-neutral-100 space-y-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-700">
-          <Target class="w-3.5 h-3.5" />
-          <span>{{ t('predicted_distribution_title') }}</span>
-          <span class="text-neutral-400 font-normal font-mono text-[11px]">
-            ({{ t('total_points_count') }} {{ samplingPoints.length }} {{ t('points_suffix') }})
-          </span>
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <Target class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+              {{ t('predicted_distribution_title') }}
+            </h3>
+            <p class="text-[11px] text-neutral-400 font-mono">
+              {{ t('total_points_count') }} {{ samplingPoints.length }} {{ t('points_suffix') }}
+            </p>
+          </div>
         </div>
 
         <!-- Mode & Density Controls -->

@@ -290,9 +290,14 @@ function restartProbe() {
 
       <!-- Action & Export Tools -->
       <div class="lg:col-span-4 p-5 bg-white border border-neutral-200/80 rounded-xl flex flex-col justify-between space-y-3 shadow-xs">
-        <div class="space-y-1">
-          <div class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('export_and_share') }}</div>
-          <p class="text-[11px] text-neutral-400">{{ t('export_desc') }}</p>
+        <div class="flex items-center space-x-2.5 pb-2 border-b border-neutral-100">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <Download class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('export_and_share') }}</h3>
+            <p class="text-[11px] text-neutral-400">{{ t('export_desc') }}</p>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
@@ -348,11 +353,18 @@ function restartProbe() {
     <!-- Deadzone Range Adjuster Panel -->
     <div v-if="recalculatedPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-100 pb-3">
-        <div class="flex items-center space-x-2">
-          <Sliders class="w-4 h-4 text-neutral-800" />
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
-            {{ t('deadzone_filter_title') }}
-          </h3>
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <Sliders class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">
+              {{ t('deadzone_filter_title') }}
+            </h3>
+            <p class="text-[11px] text-neutral-400">
+              {{ t('effective_detection_range') }}
+            </p>
+          </div>
         </div>
         <div class="flex items-center space-x-2">
           <button
@@ -424,10 +436,17 @@ function restartProbe() {
 
     <!-- Main Chart Section -->
     <div class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <BarChart3 class="w-3.5 h-3.5 text-neutral-700" />
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('chart_title') }}</h3>
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-2">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <BarChart3 class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('chart_title') }}</h3>
+            <p class="text-[11px] text-neutral-400 font-mono">
+              {{ recalculatedPoints.length }} {{ t('points_suffix') }}
+            </p>
+          </div>
         </div>
         <div class="flex items-center space-x-4 text-xs font-mono text-neutral-500">
           <span class="flex items-center space-x-1.5">
@@ -457,11 +476,18 @@ function restartProbe() {
 
     <!-- Data Table Breakdown -->
     <div v-if="recalculatedPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
-      <div class="flex items-center justify-between">
-        <span class="text-xs font-semibold uppercase tracking-wider text-neutral-700">{{ t('table_title') }}</span>
-        <span v-if="noise" class="text-xs font-mono text-neutral-500">
-          Noise Floor: X={{ noise.floor_x }} px/s, Y={{ noise.floor_y }} px/s
-        </span>
+      <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-2">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
+            <FileSpreadsheet class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('table_title') }}</h3>
+            <p v-if="noise" class="text-[11px] text-neutral-400 font-mono">
+              Noise Floor: X={{ noise.floor_x }} px/s, Y={{ noise.floor_y }} px/s
+            </p>
+          </div>
+        </div>
       </div>
 
       <div class="max-h-60 overflow-y-auto rounded-lg border border-neutral-200">
