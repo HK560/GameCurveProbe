@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-09-04T10:33:00Z",
+  "session_id": "sim-piecewise2-three-stage",
+  "config": {
+    "inner_deadzone": 0.0,
+    "outer_deadzone": 1.0,
+    "note": "Three-Stage Tactical Curve (Micro aim 0-30%, Steady Cruise 30-75%, Outer Boost 75-100%)"
+  },
+  "points": [
+    { "input": 0.00, "velocity_px_s": 0.0, "normalized_speed": 0.0, "stability": 1.0, "valid": true, "attempts": 1 },
+    { "input": 0.05, "velocity_px_s": 45.0, "normalized_speed": 0.03, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.10, "velocity_px_s": 90.0, "normalized_speed": 0.05, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.15, "velocity_px_s": 135.0, "normalized_speed": 0.08, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.20, "velocity_px_s": 180.0, "normalized_speed": 0.11, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.25, "velocity_px_s": 225.0, "normalized_speed": 0.13, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.30, "velocity_px_s": 270.0, "normalized_speed": 0.16, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.35, "velocity_px_s": 350.0, "normalized_speed": 0.21, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.40, "velocity_px_s": 430.0, "normalized_speed": 0.25, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.45, "velocity_px_s": 510.0, "normalized_speed": 0.30, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.50, "velocity_px_s": 590.0, "normalized_speed": 0.35, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.55, "velocity_px_s": 670.0, "normalized_speed": 0.39, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.60, "velocity_px_s": 750.0, "normalized_speed": 0.44, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.65, "velocity_px_s": 830.0, "normalized_speed": 0.49, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.70, "velocity_px_s": 910.0, "normalized_speed": 0.54, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.75, "velocity_px_s": 990.0, "normalized_speed": 0.58, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.80, "velocity_px_s": 1130.0, "normalized_speed": 0.66, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.85, "velocity_px_s": 1270.0, "normalized_speed": 0.75, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.90, "velocity_px_s": 1410.0, "normalized_speed": 0.83, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.95, "velocity_px_s": 1550.0, "normalized_speed": 0.91, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 1.00, "velocity_px_s": 1700.0, "normalized_speed": 1.00, "stability": 1.0, "valid": true, "attempts": 1 }
+  ]
+}
