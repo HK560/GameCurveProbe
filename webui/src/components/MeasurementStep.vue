@@ -69,6 +69,37 @@ const sampleMs = computed<number>(() => {
   return Math.max(100, Math.min(10000, customSampleMs.value || 700))
 })
 
+const estimatedDurationSec = computed<number>(() => {
+  const pts = pointCount.value
+  const singlePtSec = (settleMs.value + sampleMs.value) / 1000
+  const totalMeasurements = pts <= 1 ? 1 : 1 + (pts - 1) * 2
+  return Math.round(totalMeasurements * singlePtSec + (pts - 1) * 0.1)
+})
+
+watch(durationPreset, (newPreset, oldPreset) => {
+  if (newPreset === 'custom') {
+    if (oldPreset === 'standard') {
+      customSettleMs.value = 300
+      customSampleMs.value = 700
+    } else if (oldPreset === 'fast') {
+      customSettleMs.value = 200
+      customSampleMs.value = 500
+    } else if (oldPreset === 'precise') {
+      customSettleMs.value = 400
+      customSampleMs.value = 1000
+    }
+  }
+})
+
+watch(pointCountPreset, (newPreset, oldPreset) => {
+  if (newPreset === 'custom') {
+    const num = parseInt(oldPreset, 10)
+    if (!isNaN(num)) {
+      customPointCount.value = num
+    }
+  }
+})
+
 const errorMessage = ref<string | null>(null)
 
 const logContainerRef = ref<HTMLElement | null>(null)
@@ -228,13 +259,17 @@ async function cancelMeasurement() {
         </div>
       </div>
 
+      <!-- Main Controls Row (Strictly aligned 4 columns) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <!-- 测定范围模式 -->
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-neutral-700">{{ t('range_mode') }}</label>
+          <div class="flex items-center justify-between h-4">
+            <label class="text-xs font-medium text-neutral-700">{{ t('range_mode') }}</label>
+          </div>
           <select
             v-model="rangeMode"
             :disabled="isRunning"
-            class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
+            class="w-full h-10 bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
           >
             <option value="full">{{ t('range_full') }}</option>
             <option value="active_range">{{ t('range_active') }}</option>
@@ -243,93 +278,52 @@ async function cancelMeasurement() {
 
         <!-- 采样点密度 -->
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between h-4">
             <label class="text-xs font-medium text-neutral-700">{{ t('point_density') }}</label>
-            <span v-if="pointCountPreset === 'custom'" class="text-[10px] text-neutral-400 font-mono">{{ t('custom_points_label') }}</span>
+            <span v-if="pointCountPreset === 'custom'" class="text-[11px] font-mono text-neutral-500 font-medium">
+              {{ pointCount }} {{ t('points_suffix') }}
+            </span>
           </div>
-          <div class="space-y-1.5">
-            <select
-              v-model="pointCountPreset"
-              :disabled="isRunning"
-              class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
-            >
-              <option value="9">9 {{ t('points_suffix') }} (~15s)</option>
-              <option value="17">17 {{ t('points_suffix') }} (~30s)</option>
-              <option value="33">33 {{ t('points_suffix') }} (~60s)</option>
-              <option value="custom">{{ t('custom_points') }}</option>
-            </select>
-            <div v-if="pointCountPreset === 'custom'" class="flex items-center space-x-2 pt-0.5">
-              <input
-                type="number"
-                v-model.number="customPointCount"
-                :disabled="isRunning"
-                min="3"
-                max="100"
-                :placeholder="`25 ${t('points_suffix')}`"
-                class="w-full bg-white border border-neutral-300 rounded-lg px-2.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
-              />
-              <span class="text-xs font-mono text-neutral-500 shrink-0">{{ t('points_unit') }}</span>
-            </div>
-          </div>
+          <select
+            v-model="pointCountPreset"
+            :disabled="isRunning"
+            class="w-full h-10 bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
+          >
+            <option value="9">9 {{ t('points_suffix') }} (~15s)</option>
+            <option value="17">17 {{ t('points_suffix') }} (~30s)</option>
+            <option value="33">33 {{ t('points_suffix') }} (~60s)</option>
+            <option value="custom">{{ t('custom_points') }}</option>
+          </select>
         </div>
 
         <!-- 单点稳定/采样时长 -->
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between h-4">
             <label class="text-xs font-medium text-neutral-700">{{ t('settle_sample_duration') }}</label>
-            <span v-if="durationPreset !== 'custom'" class="text-[10px] font-mono text-neutral-400">
+            <span class="text-[11px] font-mono text-neutral-500 font-medium">
               {{ settleMs }}ms / {{ sampleMs }}ms
             </span>
           </div>
-          <div class="space-y-1.5">
-            <select
-              v-model="durationPreset"
-              :disabled="isRunning"
-              class="w-full bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
-            >
-              <option value="standard">{{ t('duration_standard') }}</option>
-              <option value="fast">{{ t('duration_fast') }}</option>
-              <option value="precise">{{ t('duration_precise') }}</option>
-              <option value="custom">{{ t('duration_custom') }}</option>
-            </select>
-            <div v-if="durationPreset === 'custom'" class="grid grid-cols-2 gap-2 pt-0.5">
-              <div class="flex items-center space-x-1">
-                <span class="text-[10px] text-neutral-500 shrink-0">Settle:</span>
-                <input
-                  type="number"
-                  v-model.number="customSettleMs"
-                  :disabled="isRunning"
-                  step="50"
-                  min="50"
-                  max="5000"
-                  class="w-full bg-white border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
-                />
-                <span class="text-[10px] text-neutral-400">ms</span>
-              </div>
-              <div class="flex items-center space-x-1">
-                <span class="text-[10px] text-neutral-500 shrink-0">Sample:</span>
-                <input
-                  type="number"
-                  v-model.number="customSampleMs"
-                  :disabled="isRunning"
-                  step="50"
-                  min="100"
-                  max="10000"
-                  class="w-full bg-white border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-mono text-neutral-900 focus:outline-none focus:border-neutral-900"
-                />
-                <span class="text-[10px] text-neutral-400">ms</span>
-              </div>
-            </div>
-          </div>
+          <select
+            v-model="durationPreset"
+            :disabled="isRunning"
+            class="w-full h-10 bg-neutral-50 hover:bg-white focus:bg-white border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:opacity-50"
+          >
+            <option value="standard">{{ t('duration_standard') }}</option>
+            <option value="fast">{{ t('duration_fast') }}</option>
+            <option value="precise">{{ t('duration_precise') }}</option>
+            <option value="custom">{{ t('duration_custom') }}</option>
+          </select>
         </div>
 
         <!-- Start / Stop Button -->
-        <div>
+        <div class="space-y-1.5">
+          <div class="h-4"></div>
           <button
             v-if="!isRunning"
             type="button"
             @click="startMeasurement"
-            class="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm"
+            class="w-full h-10 bg-neutral-900 hover:bg-neutral-800 text-white font-medium px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm shadow-2xs active:scale-[0.99]"
           >
             <Play class="w-3.5 h-3.5 fill-current" />
             <span>{{ t('start_measurement') }}</span>
@@ -341,7 +335,7 @@ async function cancelMeasurement() {
             v-else
             @click="cancelMeasurement"
             :disabled="activeJob?.state === 'canceling'"
-            class="w-full bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full h-10 bg-rose-600 hover:bg-rose-700 text-white font-medium px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
           >
             <Square class="w-3.5 h-3.5 fill-current" />
             <span>{{ activeJob?.state === 'canceling' ? t('canceling') : t('cancel_task') }}</span>
@@ -351,6 +345,88 @@ async function cancelMeasurement() {
           </button>
         </div>
       </div>
+
+      <!-- Custom Parameters Drawer (Smooth expansion below the controls) -->
+      <transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 -translate-y-1 max-h-0"
+        enter-to-class="opacity-100 translate-y-0 max-h-40"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0 max-h-40"
+        leave-to-class="opacity-0 -translate-y-1 max-h-0"
+      >
+        <div
+          v-if="pointCountPreset === 'custom' || durationPreset === 'custom'"
+          class="flex flex-wrap items-center justify-between gap-3 text-xs bg-neutral-50/80 p-3 rounded-xl border border-neutral-200/70"
+        >
+          <div class="flex flex-wrap items-center gap-4 sm:gap-6">
+            <!-- Custom Point Count Input -->
+            <div v-if="pointCountPreset === 'custom'" class="flex items-center space-x-2">
+              <span class="text-xs font-medium text-neutral-700">{{ t('custom_points_label') }}:</span>
+              <div class="relative flex items-center">
+                <input
+                  type="number"
+                  v-model.number="customPointCount"
+                  :disabled="isRunning"
+                  min="3"
+                  max="100"
+                  class="w-24 bg-white border border-neutral-200 hover:border-neutral-300 focus:border-neutral-900 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none transition shadow-2xs"
+                />
+                <span class="absolute right-2 text-[11px] text-neutral-400 font-mono pointer-events-none select-none">
+                  {{ t('points_suffix').trim() }}
+                </span>
+              </div>
+              <span class="text-[11px] text-neutral-400 font-mono">(3-100)</span>
+            </div>
+
+            <!-- Divider if both custom -->
+            <div v-if="pointCountPreset === 'custom' && durationPreset === 'custom'" class="hidden sm:block h-4 w-px bg-neutral-200"></div>
+
+            <!-- Custom Settle & Sample Durations -->
+            <template v-if="durationPreset === 'custom'">
+              <div class="flex items-center space-x-2">
+                <span class="text-xs font-medium text-neutral-700">{{ t('settle_duration_label') }}:</span>
+                <div class="relative flex items-center">
+                  <input
+                    type="number"
+                    v-model.number="customSettleMs"
+                    :disabled="isRunning"
+                    step="50"
+                    min="50"
+                    max="5000"
+                    class="w-24 bg-white border border-neutral-200 hover:border-neutral-300 focus:border-neutral-900 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none transition shadow-2xs"
+                  />
+                  <span class="absolute right-2 text-[11px] text-neutral-400 font-mono pointer-events-none select-none">ms</span>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-2">
+                <span class="text-xs font-medium text-neutral-700">{{ t('sample_duration_label') }}:</span>
+                <div class="relative flex items-center">
+                  <input
+                    type="number"
+                    v-model.number="customSampleMs"
+                    :disabled="isRunning"
+                    step="50"
+                    min="100"
+                    max="10000"
+                    class="w-24 bg-white border border-neutral-200 hover:border-neutral-300 focus:border-neutral-900 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none transition shadow-2xs"
+                  />
+                  <span class="absolute right-2 text-[11px] text-neutral-400 font-mono pointer-events-none select-none">ms</span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Total Estimated Time Pill -->
+          <div class="flex items-center space-x-1.5 bg-white border border-neutral-200/80 px-2.5 py-1 rounded-lg text-xs shadow-2xs ml-auto">
+            <Clock class="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+            <span class="text-neutral-500">{{ t('estimated_total_time') }}:</span>
+            <span class="font-mono font-semibold text-neutral-800">~{{ estimatedDurationSec }}s</span>
+            <span class="text-[10px] text-neutral-400 font-mono">({{ settleMs + sampleMs }}ms/点)</span>
+          </div>
+        </div>
+      </transition>
     </div>
 
     <!-- Error Alert -->
