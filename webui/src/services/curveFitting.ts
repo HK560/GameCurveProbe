@@ -24,6 +24,8 @@ export interface FitCandidate {
   params: Record<string, number | string>
   breakpoints?: number[] // Physical input coordinates (e.g. 0.94)
   curvePoints: [number, number][] // [x_input, y_speed_px_s] 100 smooth interpolation points
+  bezierControlPoints?: { p1: { x: number; y: number }; p2: { x: number; y: number } }
+  normalizedPoints?: { x: number; y: number }[] // 101 normalized points in 0-100 range
 }
 
 export interface CurveFitReport {
@@ -181,6 +183,16 @@ function fitLinear(
     curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
   }
 
+  const normalizedPoints: { x: number; y: number }[] = []
+  for (let i = 0; i <= 100; i++) {
+    const u = i / 100
+    const w = Math.max(0, Math.min(1, slope * u + intercept))
+    normalizedPoints.push({
+      x: i,
+      y: Math.round(w * 10000) / 100,
+    })
+  }
+
   return {
     type: 'linear',
     name: '纯线性 (Linear)',
@@ -191,6 +203,7 @@ function fitLinear(
       physicalSlope: Math.round(((slope * vRange) / dzRange) * 10) / 10,
     },
     curvePoints,
+    normalizedPoints,
   }
 }
 
@@ -247,6 +260,16 @@ function fitPower(
     curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
   }
 
+  const normalizedPoints: { x: number; y: number }[] = []
+  for (let i = 0; i <= 100; i++) {
+    const u = i / 100
+    const w = Math.pow(u, bestGamma)
+    normalizedPoints.push({
+      x: i,
+      y: Math.round(w * 10000) / 100,
+    })
+  }
+
   return {
     type: 'power',
     name: '幂函数凹/凸曲线 (Power)',
@@ -256,6 +279,7 @@ function fitPower(
       shape: bestGamma > 1.05 ? '下凹加速型' : bestGamma < 0.95 ? '上凸灵敏型' : '接近线性',
     },
     curvePoints,
+    normalizedPoints,
   }
 }
 
@@ -337,6 +361,16 @@ function fitPiecewise1(
     curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
   }
 
+  const normalizedPoints: { x: number; y: number }[] = []
+  for (let i = 0; i <= 100; i++) {
+    const u = i / 100
+    const w = evalPiecewise(u)
+    normalizedPoints.push({
+      x: i,
+      y: Math.round(w * 10000) / 100,
+    })
+  }
+
   return {
     type: 'piecewise1',
     name: '1点折线 (末端额外加速)',
@@ -349,6 +383,7 @@ function fitPiecewise1(
       accelSlope: Math.round(((bestK2 * vRange) / dzRange) * 10) / 10,
     },
     curvePoints,
+    normalizedPoints,
   }
 }
 
@@ -455,6 +490,16 @@ function fitPiecewise2(
     curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
   }
 
+  const normalizedPoints: { x: number; y: number }[] = []
+  for (let i = 0; i <= 100; i++) {
+    const u = i / 100
+    const w = evalPiecewise2(u)
+    normalizedPoints.push({
+      x: i,
+      y: Math.round(w * 10000) / 100,
+    })
+  }
+
   return {
     type: 'piecewise2',
     name: '2点折线 (三段式曲线)',
@@ -468,6 +513,7 @@ function fitPiecewise2(
       k3: Math.round(bestK3 * 100) / 100,
     },
     curvePoints,
+    normalizedPoints,
   }
 }
 
@@ -539,6 +585,27 @@ function fitCubicBezier(
     curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
   }
 
+  const bezierControlPoints = {
+    p1: {
+      x: Math.round(bestP1[0] * 10000) / 100,
+      y: Math.round(bestP1[1] * 10000) / 100,
+    },
+    p2: {
+      x: Math.round(bestP2[0] * 10000) / 100,
+      y: Math.round(bestP2[1] * 10000) / 100,
+    },
+  }
+
+  const normalizedPoints: { x: number; y: number }[] = []
+  for (let i = 0; i <= 100; i++) {
+    const u = i / 100
+    const w = sampleBezierY(u, bestP1[0], bestP1[1], bestP2[0], bestP2[1])
+    normalizedPoints.push({
+      x: i,
+      y: Math.round(Math.max(0, Math.min(1, w)) * 10000) / 100,
+    })
+  }
+
   return {
     type: 'bezier',
     name: '三次贝塞尔曲线 (Bézier)',
@@ -548,6 +615,8 @@ function fitCubicBezier(
       p2: `(${bestP2[0].toFixed(2)}, ${bestP2[1].toFixed(2)})`,
     },
     curvePoints,
+    bezierControlPoints,
+    normalizedPoints,
   }
 }
 

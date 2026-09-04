@@ -192,7 +192,7 @@ async function adjustDeadzoneInFrontend(direction: number) {
 
   if (cfg.auto_wake !== false) {
     try {
-      await api.wakeController(cfg.wake_input || 'right_stick')
+      await api.wakeController(cfg.wake_input || 'left_stick')
     } catch {
       // ignore
     }

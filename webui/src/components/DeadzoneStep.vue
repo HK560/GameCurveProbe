@@ -79,7 +79,7 @@ async function setStep(step: number) {
 async function autoWakeIfNeeded() {
   if (config.value?.auto_wake !== false) {
     try {
-      await api.wakeController(config.value?.wake_input || 'right_stick')
+      await api.wakeController(config.value?.wake_input || 'left_stick')
     } catch {
       // ignore
     }

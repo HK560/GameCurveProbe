@@ -66,7 +66,7 @@ export function createTutorialDemo(): TutorialDemo {
     dz_step: 0.005,
     sound_enabled: true,
     auto_wake: true,
-    wake_input: 'right_stick',
+    wake_input: 'left_stick',
     start_countdown_s: 3,
     bidirectional: true,
   }

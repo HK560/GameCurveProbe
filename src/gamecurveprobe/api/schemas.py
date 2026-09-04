@@ -17,6 +17,35 @@ from gamecurveprobe.models import (
 )
 
 
+WakeInput = Literal[
+    "right_stick",
+    "left_stick",
+    "x",
+    "y",
+    "a",
+    "b",
+    "left_bumper",
+    "right_bumper",
+    "left_trigger",
+    "right_trigger",
+    "start",
+    "back",
+    "guide",
+    "dpad_up",
+    "dpad_down",
+    "dpad_left",
+    "dpad_right",
+    "left_stick_up",
+    "left_stick_down",
+    "left_stick_left",
+    "left_stick_right",
+    "right_stick_up",
+    "right_stick_down",
+    "right_stick_left",
+    "right_stick_right",
+]
+
+
 class StrictDto(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -51,7 +80,7 @@ class ConfigUpdateRequest(StrictDto):
     dz_target: str | None = None
     dz_step: float | None = Field(default=None, ge=0.0001, le=0.5)
     sound_enabled: bool | None = None
-    wake_input: str | None = None
+    wake_input: WakeInput | None = None
     auto_wake: bool | None = None
     start_countdown_s: int | None = Field(default=None, ge=0, le=30)
     horizontal_fov_deg: float | None = Field(default=None, ge=30.0, le=180.0)
@@ -82,7 +111,7 @@ class ControllerStateRequest(StrictDto):
 
 
 class ControllerWakeRequest(StrictDto):
-    input: Literal["right_stick", "x", "y", "a", "b", "left_bumper", "right_bumper", "left_trigger", "right_trigger"]
+    input: WakeInput
 
 
 class AudioTestRequest(StrictDto):
