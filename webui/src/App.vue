@@ -21,7 +21,10 @@ import {
   Gamepad2, 
   Power,
   Keyboard,
-  Globe
+  Globe,
+  ArrowLeft,
+  ArrowRight,
+  RotateCcw
 } from 'lucide-vue-next'
 
 const connectionStore = useConnectionStore()
@@ -64,6 +67,60 @@ const steps = computed(() => [
   { id: 3, title: t('step_3_title'), desc: t('step_3_desc'), icon: Activity },
   { id: 4, title: t('step_4_title'), desc: t('step_4_desc'), icon: BarChart3 },
 ])
+
+const canGoPrev = computed(() => {
+  if (sessionStore.activeStep <= 1) return false
+  if (sessionStore.activeStep === 3 && sessionStore.activeJob !== null) return false
+  return true
+})
+
+const canGoNext = computed(() => {
+  switch (sessionStore.activeStep) {
+    case 1:
+      return Boolean(
+        sessionStore.capture &&
+        sessionStore.roi &&
+        (sessionStore.roiQuality ? sessionStore.roiQuality.score >= 25 : true)
+      )
+    case 2:
+      return true
+    case 3:
+      return Boolean(sessionStore.activeJob === null && sessionStore.lastResult)
+    case 4:
+      return true
+    default:
+      return false
+  }
+})
+
+const nextTooltip = computed(() => {
+  if (canGoNext.value) return ''
+  if (sessionStore.activeStep === 1) {
+    if (!sessionStore.capture) return t('select_window_signal_hint')
+    if (!sessionStore.roi) return t('roi_instruction')
+    if (sessionStore.roiQuality && sessionStore.roiQuality.score < 25) return t('region_too_flat')
+  } else if (sessionStore.activeStep === 3) {
+    if (sessionStore.activeJob !== null) return t('phase_running')
+    if (!sessionStore.lastResult) return t('start_probe')
+  }
+  return ''
+})
+
+function navigatePrev() {
+  if (!canGoPrev.value) return
+  if (sessionStore.activeStep > 1) {
+    sessionStore.activeStep--
+  }
+}
+
+function navigateNext() {
+  if (!canGoNext.value) return
+  if (sessionStore.activeStep < 4) {
+    sessionStore.activeStep++
+  } else if (sessionStore.activeStep === 4) {
+    sessionStore.activeStep = 3
+  }
+}
 
 async function quitApplication() {
   if (!window.confirm(t('quit_confirm'))) {
@@ -347,7 +404,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Main Content Container (Open & Breathable, No Nested Panels) -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 pb-28">
       <div v-if="sessionStore.activeStep === 1">
         <CaptureStep />
       </div>
@@ -361,6 +418,54 @@ onUnmounted(() => {
         <AnalysisStep />
       </div>
     </main>
+
+    <!-- Sticky Bottom Navigation Bar (Centered) -->
+    <footer class="sticky bottom-0 z-40 bg-white/90 backdrop-blur-md border-t border-neutral-200/80 shadow-xs py-3 px-4">
+      <div class="max-w-7xl mx-auto flex items-center justify-center gap-4">
+        <!-- Previous Step Button -->
+        <button
+          v-if="sessionStore.activeStep > 1"
+          type="button"
+          @click="navigatePrev"
+          :disabled="!canGoPrev"
+          class="min-w-[160px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium text-neutral-700 transition cursor-pointer shadow-xs"
+        >
+          <ArrowLeft class="w-4 h-4" />
+          <span>
+            {{
+              sessionStore.activeStep === 2
+                ? t('back_to_capture')
+                : sessionStore.activeStep === 3
+                ? t('back_to_deadzone')
+                : t('back_to_measurement')
+            }}
+          </span>
+        </button>
+
+        <!-- Next / Action Button -->
+        <button
+          type="button"
+          @click="navigateNext"
+          :disabled="!canGoNext"
+          :title="nextTooltip"
+          class="min-w-[160px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium text-white transition cursor-pointer shadow-xs"
+        >
+          <span>
+            {{
+              sessionStore.activeStep === 1
+                ? t('proceed_to_deadzone')
+                : sessionStore.activeStep === 2
+                ? t('proceed_to_measurement')
+                : sessionStore.activeStep === 3
+                ? t('proceed_to_analysis')
+                : t('restart_test')
+            }}
+          </span>
+          <RotateCcw v-if="sessionStore.activeStep === 4" class="w-4 h-4" />
+          <ArrowRight v-else class="w-4 h-4" />
+        </button>
+      </div>
+    </footer>
 
     <!-- Hotkey & Sound Settings Modal -->
     <HotkeySettingsModal
