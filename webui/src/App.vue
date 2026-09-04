@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useSessionStore } from './stores/session'
 import { api } from './services/api'
@@ -12,6 +12,9 @@ import DeadzoneStep from './components/DeadzoneStep.vue'
 import MeasurementStep from './components/MeasurementStep.vue'
 import HotkeySettingsModal from './components/HotkeySettingsModal.vue'
 import CountdownModal from './components/CountdownModal.vue'
+import TutorialOverlay from './components/TutorialOverlay.vue'
+import { createTutorialController, provideTutorial } from './composables/useTutorial'
+import { hasCompletedTutorial } from './services/tutorialState'
 const AnalysisStep = defineAsyncComponent(() => import('./components/AnalysisStep.vue'))
 import { 
   Monitor, 
@@ -31,6 +34,17 @@ const connectionStore = useConnectionStore()
 const sessionStore = useSessionStore()
 const isQuitting = ref(false)
 const showHotkeyModal = ref(false)
+const tutorial = provideTutorial(createTutorialController({
+  getPage: () => sessionStore.activeStep,
+  setPage: page => { sessionStore.activeStep = page },
+}))
+const headerCapture = computed(() => tutorial.active.value ? tutorial.demo.capture : sessionStore.capture)
+
+async function startTutorialFromSettings() {
+  showHotkeyModal.value = false
+  await nextTick()
+  tutorial.start('settings')
+}
 
 async function toggleController() {
   try {
@@ -118,6 +132,7 @@ async function quitApplication() {
 }
 
 function handleKeyDown(event: KeyboardEvent) {
+  if (tutorial.active.value) return
   // Ignore hotkey triggers when user is typing in an input/textarea/select
   const target = event.target as HTMLElement | null
   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
@@ -203,6 +218,8 @@ onMounted(async () => {
   ws.connectEvents()
   ws.connectPreview()
   await sessionStore.loadInitialData()
+  await nextTick()
+  if (!hasCompletedTutorial()) tutorial.start('first-run')
   window.addEventListener('keydown', handleKeyDown)
 })
 
@@ -242,8 +259,8 @@ onUnmounted(() => {
               {{ t('disconnected') }}
             </span>
             <span class="text-neutral-300">|</span>
-            <span v-if="sessionStore.capture" class="text-neutral-600 font-mono">
-              {{ sessionStore.capture.backend.toUpperCase() }} {{ sessionStore.capture.width }}×{{ sessionStore.capture.height }}
+            <span v-if="headerCapture" class="text-neutral-600 font-mono">
+              {{ headerCapture.backend.toUpperCase() }} {{ headerCapture.width }}×{{ headerCapture.height }}
             </span>
             <span v-else class="text-neutral-400">
               {{ t('no_window_captured') }}
@@ -262,6 +279,7 @@ onUnmounted(() => {
           </button>
 
           <label
+            data-tour="controller-status"
             class="flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-600 hover:bg-neutral-100 cursor-pointer"
             :class="{ 'opacity-50 cursor-wait': connectionStore.isUpdatingController }"
             :title="t('vigem_toggle_tooltip')"
@@ -306,7 +324,7 @@ onUnmounted(() => {
     <!-- Guided Steps Navigation (Minimalist Segmented) -->
     <div class="border-b border-neutral-200/60 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6">
-        <nav class="flex space-x-1 sm:space-x-2 py-2">
+        <nav data-tour="workflow-nav" class="flex space-x-1 sm:space-x-2 py-2">
           <button
             v-for="step in steps"
             :key="step.id"
@@ -393,9 +411,11 @@ onUnmounted(() => {
     <HotkeySettingsModal
       :show="showHotkeyModal"
       @close="showHotkeyModal = false"
+      @start-tutorial="startTutorialFromSettings"
     />
 
     <!-- Measurement Countdown Modal -->
     <CountdownModal />
+    <TutorialOverlay />
   </div>
 </template>

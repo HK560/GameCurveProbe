@@ -5,6 +5,7 @@ import { api } from '../services/api'
 import CurveChart from './CurveChart.vue'
 import { fitResponseCurve, type FitModelType, type FitCandidate } from '../services/curveFitting'
 import { t } from '../services/i18n'
+import { useTutorial } from '../composables/useTutorial'
 import { 
   BarChart3, 
   Download, 
@@ -17,11 +18,12 @@ import {
 } from 'lucide-vue-next'
 
 const sessionStore = useSessionStore()
+const tutorial = useTutorial()
 const fileInput = ref<HTMLInputElement | null>(null)
 const importMessage = ref<string | null>(null)
 
-const result = computed(() => sessionStore.lastResult)
-const importedResult = computed(() => sessionStore.importedResult)
+const result = computed(() => tutorial.active.value ? tutorial.demo.result : sessionStore.lastResult)
+const importedResult = computed(() => tutorial.active.value ? null : sessionStore.importedResult)
 const points = computed(() => result.value?.points || [])
 const noise = computed(() => result.value?.noise)
 
@@ -280,9 +282,9 @@ function restartProbe() {
 <template>
   <div class="space-y-6">
     <!-- Top Summary Banner -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div data-tour="analysis-summary" class="grid grid-cols-1 lg:grid-cols-12 gap-4">
       <!-- Curve Model Card -->
-      <div class="lg:col-span-8 p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3.5 shadow-xs">
+      <div data-tour="analysis-model" class="lg:col-span-8 p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3.5 shadow-xs">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center space-x-2">
             <div class="w-6 h-6 rounded-md bg-neutral-900 text-white flex items-center justify-center">
@@ -387,7 +389,7 @@ function restartProbe() {
       </div>
 
       <!-- Action & Export Tools -->
-      <div class="lg:col-span-4 p-5 bg-white border border-neutral-200/80 rounded-xl flex flex-col justify-between space-y-3 shadow-xs">
+      <div data-tour="analysis-export" class="lg:col-span-4 p-5 bg-white border border-neutral-200/80 rounded-xl flex flex-col justify-between space-y-3 shadow-xs">
         <div class="flex items-center space-x-2.5 pb-2 border-b border-neutral-100">
           <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
             <Download class="w-4 h-4" />
@@ -449,7 +451,7 @@ function restartProbe() {
     </div>
 
     <!-- Deadzone Range Adjuster Panel -->
-    <div v-if="recalculatedPoints.length > 0" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
+    <div v-if="recalculatedPoints.length > 0" data-tour="analysis-range" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-100 pb-3">
         <div class="flex items-center space-x-2.5">
           <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
@@ -533,7 +535,7 @@ function restartProbe() {
     </div>
 
     <!-- Main Chart Section -->
-    <div class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
+    <div data-tour="analysis-chart" class="p-5 bg-white border border-neutral-200/80 rounded-xl space-y-4 shadow-xs">
       <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-2">
         <div class="flex items-center space-x-2.5">
           <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">

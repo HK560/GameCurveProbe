@@ -1,5 +1,92 @@
 @import "tailwindcss";
 
+.driver-popover.gamecurveprobe-tutorial {
+  max-width: 390px;
+  border: 1px solid rgb(229 229 229);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
+  color: rgb(23 23 23);
+  padding: 18px;
+}
+
+.gamecurveprobe-tutorial .driver-popover-title {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.gamecurveprobe-tutorial .tutorial-chapter {
+  display: block;
+  width: max-content;
+  margin-bottom: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(245 245 245);
+  color: rgb(82 82 82);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.gamecurveprobe-tutorial .driver-popover-description {
+  color: rgb(82 82 82);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.gamecurveprobe-tutorial .driver-popover-next-btn,
+.gamecurveprobe-tutorial .driver-popover-prev-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 12px;
+  text-shadow: none;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.gamecurveprobe-tutorial .driver-popover-next-btn {
+  background: rgb(23 23 23);
+  color: white;
+}
+
+.gamecurveprobe-tutorial .driver-popover-next-btn:hover,
+.gamecurveprobe-tutorial .driver-popover-next-btn:focus {
+  background: rgb(55 65 81);
+  color: white;
+}
+
+.gamecurveprobe-tutorial .driver-popover-prev-btn {
+  background: rgb(245 245 245);
+  color: rgb(82 82 82);
+}
+
+.gamecurveprobe-tutorial .driver-popover-prev-btn:hover,
+.gamecurveprobe-tutorial .driver-popover-prev-btn:focus {
+  background: rgb(229 229 229);
+  color: rgb(23 23 23);
+}
+
+.gamecurveprobe-tutorial .driver-popover-close-btn {
+  width: auto;
+  height: auto;
+  color: rgb(115 115 115);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.gamecurveprobe-tutorial .driver-popover-close-btn:hover,
+.gamecurveprobe-tutorial .driver-popover-close-btn:focus {
+  color: rgb(23 23 23);
+}
+
+@media (max-width: 640px) {
+  .driver-popover.gamecurveprobe-tutorial {
+    max-width: calc(100vw - 24px);
+    padding: 14px;
+  }
+}
+
 @layer base {
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
