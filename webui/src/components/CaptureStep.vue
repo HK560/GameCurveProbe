@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useSessionStore } from '../stores/session'
 import RoiSelector from './RoiSelector.vue'
 import QualityBadge from './QualityBadge.vue'
-import { RefreshCw, Play, ArrowRight, Settings2, ShieldAlert } from 'lucide-vue-next'
+import { RefreshCw, Play, Settings2, ShieldAlert } from 'lucide-vue-next'
 import type { RoiRect } from '../types/api'
 import { captureErrorMessage, captureModeInfo, type CaptureMode } from '../services/captureModes'
 import { t } from '../services/i18n'
@@ -83,10 +83,6 @@ async function onRoiChange(newRoi: RoiRect) {
   } catch (err: any) {
     console.error('Failed to update ROI:', err)
   }
-}
-
-function proceedToDeadzone() {
-  sessionStore.activeStep = 2
 }
 </script>
 
@@ -201,46 +197,32 @@ function proceedToDeadzone() {
       </div>
 
       <!-- Right: ROI Diagnostics and Quality Score -->
-      <div class="lg:col-span-4 space-y-4 flex flex-col justify-between">
-        <div class="space-y-4">
-          <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-            <Settings2 class="w-3.5 h-3.5" />
-            <span>{{ t('captured_frame_roi') }}</span>
-          </div>
-
-          <!-- Quality Badge and Progress -->
-          <QualityBadge :quality="roiQuality" />
-
-          <!-- Coordinate Display -->
-          <div v-if="sessionStore.roi" class="bg-white p-3.5 rounded-xl border border-neutral-200/80 space-y-2">
-            <div class="text-xs font-medium text-neutral-700">{{ t('roi_size_info') }}</div>
-            <div class="grid grid-cols-2 gap-2 text-xs font-mono text-neutral-600">
-              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
-                <span class="text-neutral-400">X:</span> {{ sessionStore.roi.x }} px
-              </div>
-              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
-                <span class="text-neutral-400">Y:</span> {{ sessionStore.roi.y }} px
-              </div>
-              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
-                <span class="text-neutral-400">{{ t('width_label') }}:</span> {{ sessionStore.roi.width }} px
-              </div>
-              <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
-                <span class="text-neutral-400">{{ t('height_label') }}:</span> {{ sessionStore.roi.height }} px
-              </div>
-            </div>
-          </div>
+      <div class="lg:col-span-4 space-y-4">
+        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          <Settings2 class="w-3.5 h-3.5" />
+          <span>{{ t('captured_frame_roi') }}</span>
         </div>
 
-        <!-- Next Step Button -->
-        <div class="pt-2">
-          <button
-            @click="proceedToDeadzone"
-            :disabled="!isAttached || !sessionStore.roi || (roiQuality ? roiQuality.score < 25 : false)"
-            class="w-full bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer"
-          >
-            <span>{{ t('proceed_to_deadzone') }}</span>
-            <ArrowRight class="w-4 h-4" />
-          </button>
+        <!-- Quality Badge and Progress -->
+        <QualityBadge :quality="roiQuality" />
+
+        <!-- Coordinate Display -->
+        <div v-if="sessionStore.roi" class="bg-white p-3.5 rounded-xl border border-neutral-200/80 space-y-2">
+          <div class="text-xs font-medium text-neutral-700">{{ t('roi_size_info') }}</div>
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono text-neutral-600">
+            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+              <span class="text-neutral-400">X:</span> {{ sessionStore.roi.x }} px
+            </div>
+            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+              <span class="text-neutral-400">Y:</span> {{ sessionStore.roi.y }} px
+            </div>
+            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+              <span class="text-neutral-400">{{ t('width_label') }}:</span> {{ sessionStore.roi.width }} px
+            </div>
+            <div class="bg-neutral-50 px-2.5 py-1.5 rounded border border-neutral-200/60">
+              <span class="text-neutral-400">{{ t('height_label') }}:</span> {{ sessionStore.roi.height }} px
+            </div>
+          </div>
         </div>
       </div>
     </div>
