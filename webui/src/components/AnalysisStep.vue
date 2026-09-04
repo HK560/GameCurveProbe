@@ -15,7 +15,9 @@ import {
   RotateCcw, 
   Activity,
   FileSpreadsheet,
-  Sliders
+  Sliders,
+  Copy,
+  Check
 } from 'lucide-vue-next'
 
 const sessionStore = useSessionStore()
@@ -187,6 +189,29 @@ function saveBlob(blob: Blob, filename: string) {
 }
 
 const exportNormalizeToFullScale = ref<boolean>(true)
+const copiedFormat = ref<'json' | 'csv' | null>(null)
+
+function getExportContent(format: 'json' | 'csv'): string {
+  if (recalculatedPoints.value.length === 0) return ''
+  if (format === 'csv') {
+    return buildDseCsv(
+      activeCandidate.value,
+      recalculatedPoints.value,
+      analysisInnerDeadzone.value,
+      analysisOuterDeadzone.value,
+      exportNormalizeToFullScale.value
+    )
+  } else {
+    return buildControllerMetaJson(
+      activeCandidate.value,
+      recalculatedPoints.value,
+      analysisInnerDeadzone.value,
+      analysisOuterDeadzone.value,
+      `GameCurveProbe ${currentTypeInfo.value.label}`,
+      exportNormalizeToFullScale.value
+    )
+  }
+}
 
 async function downloadExport(format: 'json' | 'csv') {
   if (recalculatedPoints.value.length === 0) return
@@ -197,27 +222,27 @@ async function downloadExport(format: 'json' | 'csv') {
   const normTag = exportNormalizeToFullScale.value ? 'norm' : 'raw'
   const filename = `gamecurveprobe_${modelTypeStr}_${normTag}_${rangeStr}_${dateStr}.${format}`
 
-  if (format === 'csv') {
-    const csvContent = buildDseCsv(
-      activeCandidate.value,
-      recalculatedPoints.value,
-      analysisInnerDeadzone.value,
-      analysisOuterDeadzone.value,
-      exportNormalizeToFullScale.value
-    )
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    saveBlob(blob, filename)
-  } else {
-    const jsonContent = buildControllerMetaJson(
-      activeCandidate.value,
-      recalculatedPoints.value,
-      analysisInnerDeadzone.value,
-      analysisOuterDeadzone.value,
-      `GameCurveProbe ${currentTypeInfo.value.label}`,
-      exportNormalizeToFullScale.value
-    )
-    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' })
-    saveBlob(blob, filename)
+  const content = getExportContent(format)
+  const mimeType = format === 'csv' ? 'text/csv;charset=utf-8;' : 'application/json;charset=utf-8;'
+  const blob = new Blob([content], { type: mimeType })
+  saveBlob(blob, filename)
+}
+
+async function copyExport(format: 'json' | 'csv') {
+  if (recalculatedPoints.value.length === 0) return
+  const content = getExportContent(format)
+  if (!content) return
+
+  try {
+    await navigator.clipboard.writeText(content)
+    copiedFormat.value = format
+    setTimeout(() => {
+      if (copiedFormat.value === format) {
+        copiedFormat.value = null
+      }
+    }, 2000)
+  } catch (err) {
+    console.error(`Failed to copy ${format}:`, err)
   }
 }
 
@@ -410,22 +435,53 @@ function restartProbe() {
         </div>
 
         <div class="grid grid-cols-2 gap-2">
-          <button
-            @click="downloadExport('json')"
-            :disabled="recalculatedPoints.length === 0"
-            class="py-2 px-3 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 text-white text-xs rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer font-medium"
-          >
-            <Download class="w-3.5 h-3.5" />
-            <span>{{ t('export_json') }}</span>
-          </button>
-          <button
-            @click="downloadExport('csv')"
-            :disabled="recalculatedPoints.length === 0"
-            class="py-2 px-3 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 disabled:opacity-30 text-neutral-800 text-xs rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer font-medium"
-          >
-            <FileSpreadsheet class="w-3.5 h-3.5 text-neutral-700" />
-            <span>{{ t('export_csv') }}</span>
-          </button>
+          <!-- JSON Export & Copy Split Button -->
+          <div class="inline-flex rounded-lg bg-neutral-900 text-white shadow-xs overflow-hidden transition">
+            <button
+              type="button"
+              @click="downloadExport('json')"
+              :disabled="recalculatedPoints.length === 0"
+              :title="t('export_json')"
+              class="flex-1 py-2 pl-3 pr-2 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-neutral-900 flex items-center justify-center space-x-1.5 text-xs font-medium transition cursor-pointer"
+            >
+              <Download class="w-3.5 h-3.5" />
+              <span>{{ t('export_json') }}</span>
+            </button>
+            <button
+              type="button"
+              @click="copyExport('json')"
+              :disabled="recalculatedPoints.length === 0"
+              :title="copiedFormat === 'json' ? t('copied_json') : t('copy_json')"
+              class="px-2.5 py-2 border-l border-neutral-700/80 hover:bg-neutral-800 active:bg-neutral-700 disabled:opacity-30 disabled:hover:bg-neutral-900 flex items-center justify-center transition cursor-pointer text-neutral-300 hover:text-white"
+            >
+              <Check v-if="copiedFormat === 'json'" class="w-3.5 h-3.5 text-emerald-400" />
+              <Copy v-else class="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <!-- CSV Export & Copy Split Button -->
+          <div class="inline-flex rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-800 shadow-xs overflow-hidden transition">
+            <button
+              type="button"
+              @click="downloadExport('csv')"
+              :disabled="recalculatedPoints.length === 0"
+              :title="t('export_csv')"
+              class="flex-1 py-2 pl-3 pr-2 hover:bg-neutral-200/80 disabled:opacity-30 disabled:hover:bg-neutral-100 flex items-center justify-center space-x-1.5 text-xs font-medium transition cursor-pointer"
+            >
+              <FileSpreadsheet class="w-3.5 h-3.5 text-neutral-700" />
+              <span>{{ t('export_csv') }}</span>
+            </button>
+            <button
+              type="button"
+              @click="copyExport('csv')"
+              :disabled="recalculatedPoints.length === 0"
+              :title="copiedFormat === 'csv' ? t('copied_csv') : t('copy_csv')"
+              class="px-2.5 py-2 border-l border-neutral-200 hover:bg-neutral-200/80 active:bg-neutral-200 disabled:opacity-30 disabled:hover:bg-neutral-100 flex items-center justify-center transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+            >
+              <Check v-if="copiedFormat === 'csv'" class="w-3.5 h-3.5 text-emerald-600" />
+              <Copy v-else class="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         <div class="pt-2 border-t border-neutral-100 flex items-center justify-between">

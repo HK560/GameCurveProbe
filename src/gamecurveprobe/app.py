@@ -222,6 +222,19 @@ def build_context(
     )
 
 
+GITHUB_REPO_URL = "https://github.com/HK560/GameCurveProbe"
+
+BANNER = r"""
+   ____                       ____                     ____            _          
+  / ___| __ _ _ __ ___   ___ / ___|   _ _ ____   _____|  _ \ _ __ ___ | |__   ___ 
+ | |  _ / _` | '_ ` _ \ / _ \ |  | | | | '__\ \ / / _ \ |_) | '__/ _ \| '_ \ / _ \
+ | |_| | (_| | | | | | |  __/ |__| |_| | |   \ V /  __/  __/| | | (_) | |_) |  __/
+  \____|\__,_|_| |_| |_|\___|\____\__,_|_|    \_/ \___|_|   |_|  \___/|_.__/ \___|
+                                                                                  
+    2026  HK560               
+"""
+
+
 def build_browser_url(host: str, port: int, token: str) -> str:
     return f"http://{host}:{port}/#token={token}"
 
@@ -244,11 +257,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     url = build_browser_url(host, port, token)
-    print("\n" + "=" * 60)
-    print(" GameCurveProbe 2.0 WebUI Server")
+    print("\n" + BANNER.strip("\r\n"))
+    print("-" * 75)
+    print(f" Author:        HK560")
+    print(f" GitHub:        {GITHUB_REPO_URL}")
     print(f" Web Interface: {url}")
-    print(f" Token: {token}")
-    print("=" * 60 + "\n")
+    print(f" Auth Token:    {token}")
+    print("-" * 75 + "\n")
 
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
