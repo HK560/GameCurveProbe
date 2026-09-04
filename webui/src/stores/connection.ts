@@ -19,9 +19,11 @@ export const useConnectionStore = defineStore('connection', () => {
       controllerReady.value = res.controller_ready
       controllerEnabled.value = res.controller_enabled
       error.value = null
+      return true
     } catch (err: any) {
       connected.value = false
       error.value = err.message || t('err_connect_failed')
+      return false
     }
   }
 

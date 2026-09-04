@@ -1,0 +1,30 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+      - name: Build and smoke-test executable
+        shell: pwsh
+        run: ./scripts/build-exe.ps1
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameCurveProbe-windows
+          path: dist/GameCurveProbe.exe
+          if-no-files-found: error
