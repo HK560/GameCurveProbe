@@ -298,6 +298,9 @@ export const useSessionStore = defineStore('session', () => {
           session.value.last_result = event.payload.result
         }
         addLog('success', t('log_measurement_success'))
+        if (activeStep.value === 3) {
+          activeStep.value = 4
+        }
       } else if (event.payload.result && event.payload.job?.kind === 'idle_noise') {
         internalNoise.value = event.payload.result
         if (session.value) {

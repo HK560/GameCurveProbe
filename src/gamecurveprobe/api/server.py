@@ -74,11 +74,23 @@ def create_app(
     # Static assets for Vue frontend
     if static_dir and static_dir.exists():
         index_file = static_dir / "index.html"
-        if index_file.exists():
-            app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+        assets_dir = static_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-            @app.get("/{full_path:path}", include_in_schema=False)
-            async def serve_spa(full_path: str):
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str):
+            if full_path:
+                requested_file = (static_dir / full_path).resolve()
+                # Ensure the resolved file is within static_dir
+                try:
+                    requested_file.relative_to(static_dir.resolve())
+                    if requested_file.is_file():
+                        return FileResponse(requested_file)
+                except ValueError:
+                    pass
+            if index_file.exists():
                 return FileResponse(index_file)
+            raise HTTPException(status_code=404, detail="Not Found")
 
     return app

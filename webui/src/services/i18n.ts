@@ -19,7 +19,7 @@ export const messages = {
   zh: {
     // App & Nav
     app_title: 'GameCurveProbe',
-    app_subtitle: '手柄响应曲线精密测定',
+    app_subtitle: '游戏手柄摇杆响应曲线测量',
     version: 'v2.0',
     connected: '服务已连接',
     disconnected: '未连接',
@@ -266,6 +266,10 @@ export const messages = {
     export_mode_raw_hint: '保留实际死区区间与物理摇杆输入对应关系。',
     export_json: '导出 JSON',
     export_csv: '导出 CSV',
+    copy_json: '复制 JSON',
+    copy_csv: '复制 CSV',
+    copied_json: '已复制 JSON',
+    copied_csv: '已复制 CSV',
     import_history: '导入历史报告...',
     restart_probe: '重新测定',
     fit_confidence: '重算拟合置信度',
@@ -367,7 +371,7 @@ export const messages = {
   en: {
     // App & Nav
     app_title: 'GameCurveProbe',
-    app_subtitle: 'Precision Controller Curve Profiler',
+    app_subtitle: 'Controller Response Curve Measurement',
     version: 'v2.0',
     connected: 'Service Connected',
     disconnected: 'Disconnected',
@@ -614,6 +618,10 @@ export const messages = {
     export_mode_raw_hint: 'Preserves measured deadzones and physical stick coordinate mappings.',
     export_json: 'Export JSON',
     export_csv: 'Export CSV',
+    copy_json: 'Copy JSON',
+    copy_csv: 'Copy CSV',
+    copied_json: 'JSON Copied',
+    copied_csv: 'CSV Copied',
     import_history: 'Import History Report...',
     restart_probe: 'Restart Probe',
     fit_confidence: 'Fit Confidence',

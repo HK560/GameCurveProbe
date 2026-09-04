@@ -129,5 +129,25 @@ describe('SessionStore', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('automatically transitions from step 3 to step 4 upon measurement completion', () => {
+    const store = useSessionStore()
+    store.activeStep = 3
+
+    store.handleWsEvent({
+      type: 'job_completed',
+      payload: {
+        job: { id: 'm-1', kind: 'measurement', state: 'completed' },
+        result: {
+          schema_version: 1,
+          measured_at: '2026-09-04T20:00:00Z',
+          points: [{ input: 0.5, output: 0.45 }],
+        },
+      },
+    })
+
+    expect(store.activeStep).toBe(4)
+    expect(store.lastResult).not.toBeNull()
+  })
 })
 
