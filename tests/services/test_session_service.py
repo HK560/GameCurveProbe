@@ -72,7 +72,7 @@ def test_session_service_persists_and_reloads_config(tmp_path: Path) -> None:
     cfg_file = tmp_path / "test_config.json"
     s1 = SessionService(config_path=cfg_file)
     assert s1.config_snapshot().hotkey_start == "F9"
-    assert s1.config_snapshot().wake_input == "right_stick"
+    assert s1.config_snapshot().wake_input == "left_stick"
 
     # Update config with custom preferences
     s1.update_config({

@@ -13,13 +13,20 @@ Push-Location $repoRoot
 try {
     Push-Location (Join-Path $repoRoot 'webui')
     try {
-        npm ci
-        Assert-NativeSuccess 'npm ci'
-        npm run typecheck
+        $pkgMgr = if ((Test-Path -LiteralPath 'pnpm-lock.yaml') -and (Get-Command pnpm -ErrorAction SilentlyContinue)) { 'pnpm' } else { 'npm' }
+        if (-not (Test-Path -LiteralPath 'node_modules')) {
+            if ($pkgMgr -eq 'pnpm') {
+                pnpm install
+            } else {
+                npm ci
+            }
+            Assert-NativeSuccess 'npm ci'
+        }
+        & $pkgMgr run typecheck
         Assert-NativeSuccess 'npm run typecheck'
-        npm run test
+        & $pkgMgr run test
         Assert-NativeSuccess 'npm run test'
-        npm run build
+        & $pkgMgr run build
         Assert-NativeSuccess 'npm run build'
     } finally {
         Pop-Location

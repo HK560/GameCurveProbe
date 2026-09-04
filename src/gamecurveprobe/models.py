@@ -69,7 +69,7 @@ class ProbeConfig:
     dz_target: str = "inner"
     dz_step: float = 0.005
     sound_enabled: bool = True
-    wake_input: str = "right_stick"
+    wake_input: str = "left_stick"
     auto_wake: bool = True
     start_countdown_s: int = 5
     horizontal_fov_deg: float | None = None

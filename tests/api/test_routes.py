@@ -27,10 +27,10 @@ def test_controller_can_be_enabled_and_disabled(client, auth_headers) -> None:
 
 
 def test_controller_wake_uses_requested_input(client, auth_headers, context) -> None:
-    response = client.post("/api/controller/wake", headers=auth_headers, json={"input": "right_stick"})
+    response = client.post("/api/controller/wake", headers=auth_headers, json={"input": "left_stick"})
     assert response.status_code == 200
     assert response.json()["duration"] == "0.5s"
-    assert ("press_wake_input", "right_stick") in context.controller._backend.events
+    assert ("press_wake_input", "left_stick") in context.controller._backend.events
 
 
 def test_session_config_update(client, auth_headers) -> None:

@@ -4,6 +4,7 @@ import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import CurveChart from './CurveChart.vue'
 import { fitResponseCurve, type FitModelType, type FitCandidate } from '../services/curveFitting'
+import { buildControllerMetaJson, buildDseCsv } from '../services/curveExport'
 import { t } from '../services/i18n'
 import { useTutorial } from '../composables/useTutorial'
 import { 
@@ -121,28 +122,6 @@ const activeCandidate = computed<FitCandidate | null>(() => {
   return fitReport.value.candidates[selectedModelType.value] || fitReport.value.best
 })
 
-// Recalculate analysis metrics for export compatibility
-const recalculatedAnalysis = computed(() => {
-  if (!activeCandidate.value) {
-    return {
-      curve_type: 'undetermined',
-      confidence: 0.0,
-      metrics: { note: t('note_nodes_insufficient') },
-    }
-  }
-
-  return {
-    curve_type: activeCandidate.value.type,
-    confidence: Math.round(activeCandidate.value.confidence * 10000) / 10000,
-    metrics: {
-      ...activeCandidate.value.params,
-      r2: Math.round(activeCandidate.value.r2 * 10000) / 10000,
-      nrmse: Math.round(activeCandidate.value.nrmse * 10000) / 10000,
-      bic: Math.round(activeCandidate.value.bic * 10) / 10,
-    },
-  }
-})
-
 const modelOptions = computed(() => [
   {
     type: 'auto' as const,
@@ -207,43 +186,37 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+const exportNormalizeToFullScale = ref<boolean>(true)
+
 async function downloadExport(format: 'json' | 'csv') {
   if (recalculatedPoints.value.length === 0) return
 
   const dateStr = new Date().toISOString().slice(0, 10)
   const rangeStr = `${(analysisInnerDeadzone.value * 100).toFixed(0)}-${(analysisOuterDeadzone.value * 100).toFixed(0)}`
-  const filename = `gamecurveprobe_analysis_${rangeStr}_${dateStr}.${format}`
+  const modelTypeStr = activeCandidate.value?.type || 'curve'
+  const normTag = exportNormalizeToFullScale.value ? 'norm' : 'raw'
+  const filename = `gamecurveprobe_${modelTypeStr}_${normTag}_${rangeStr}_${dateStr}.${format}`
 
   if (format === 'csv') {
-    const headers = ['#', 'Input_Stick_X', 'Velocity_px_s', 'Recalculated_Normalized', 'Stability', 'Coverage', 'Attempts', 'In_Active_Range', 'Status']
-    const rows = recalculatedPoints.value.map((p, idx) => [
-      idx + 1,
-      p.input.toFixed(4),
-      p.velocity_px_s !== null ? p.velocity_px_s.toFixed(2) : '',
-      p.normalized_speed !== null ? p.normalized_speed.toFixed(4) : '',
-      p.stability.toFixed(4),
-      ((p as any).coverage ?? p.stability).toFixed(4),
-      p.attempts,
-      p.in_analysis_range ? 'YES' : 'NO',
-      p.valid ? (p.in_analysis_range ? 'Valid' : 'Outside_Deadzone') : 'Invalid',
-    ])
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const csvContent = buildDseCsv(
+      activeCandidate.value,
+      recalculatedPoints.value,
+      analysisInnerDeadzone.value,
+      analysisOuterDeadzone.value,
+      exportNormalizeToFullScale.value
+    )
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     saveBlob(blob, filename)
   } else {
-    const exportData = {
-      id: (result.value as any)?.id || result.value?.session_id || 'export',
-      measured_at: result.value?.measured_at || new Date().toISOString(),
-      analysis_range: {
-        inner_deadzone: analysisInnerDeadzone.value,
-        outer_deadzone: analysisOuterDeadzone.value,
-      },
-      analysis: recalculatedAnalysis.value,
-      points: recalculatedPoints.value,
-      noise: noise.value,
-    }
-    const jsonContent = JSON.stringify(exportData, null, 2)
-    const blob = new Blob([jsonContent], { type: 'application/json' })
+    const jsonContent = buildControllerMetaJson(
+      activeCandidate.value,
+      recalculatedPoints.value,
+      analysisInnerDeadzone.value,
+      analysisOuterDeadzone.value,
+      `GameCurveProbe ${currentTypeInfo.value.label}`,
+      exportNormalizeToFullScale.value
+    )
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' })
     saveBlob(blob, filename)
   }
 }
@@ -406,6 +379,34 @@ function restartProbe() {
               {{ t('controller_meta_link') }}
             </a>
           </div>
+        </div>
+
+        <!-- Point Mode Switch -->
+        <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium text-neutral-700">{{ t('export_coordinate_mode') }}</span>
+            <div class="inline-flex rounded-md p-0.5 bg-neutral-200/80 text-[10px]">
+              <button
+                type="button"
+                @click="exportNormalizeToFullScale = true"
+                class="px-2 py-0.5 rounded font-medium transition cursor-pointer"
+                :class="exportNormalizeToFullScale ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'"
+              >
+                {{ t('export_mode_normalized') }}
+              </button>
+              <button
+                type="button"
+                @click="exportNormalizeToFullScale = false"
+                class="px-2 py-0.5 rounded font-medium transition cursor-pointer"
+                :class="!exportNormalizeToFullScale ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'"
+              >
+                {{ t('export_mode_raw') }}
+              </button>
+            </div>
+          </div>
+          <p class="text-[10px] text-neutral-400 leading-tight">
+            {{ exportNormalizeToFullScale ? t('export_mode_normalized_hint') : t('export_mode_raw_hint') }}
+          </p>
         </div>
 
         <div class="grid grid-cols-2 gap-2">

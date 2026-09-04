@@ -26,7 +26,7 @@ const hotkeyDzInc = ref('F7')
 const hotkeyDzDec = ref('F6')
 const soundEnabled = ref(true)
 const autoWake = ref(true)
-const wakeInput = ref('right_stick')
+const wakeInput = ref('left_stick')
 const isSaving = ref(false)
 const isTestingSound = ref(false)
 const isWaking = ref(false)
@@ -78,7 +78,7 @@ watch(
       hotkeyDzDec.value = sessionStore.config.hotkey_dz_dec || 'F6'
       soundEnabled.value = sessionStore.config.sound_enabled ?? true
       autoWake.value = sessionStore.config.auto_wake ?? true
-      wakeInput.value = sessionStore.config.wake_input || 'right_stick'
+      wakeInput.value = sessionStore.config.wake_input || 'left_stick'
     }
   },
   { immediate: true }
