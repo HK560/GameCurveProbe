@@ -26,7 +26,7 @@
 **Interfaces:**
 - Produces: `back_to_capture`, `back_to_deadzone`, `back_to_measurement`, `proceed_to_deadzone`, `proceed_to_measurement`, `proceed_to_analysis`, `restart_test` in both `zh` and `en` message dictionaries.
 
-- [ ] **Step 1: Write unit test for navigation i18n keys**
+- [x] **Step 1: Write unit test for navigation i18n keys**
 
 ```typescript
 // webui/tests/i18n_nav.test.ts
@@ -60,12 +60,12 @@ describe('Navigation i18n keys', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --dir webui test run tests/i18n_nav.test.ts`
 Expected: FAIL due to missing keys in `messages.zh` / `messages.en`.
 
-- [ ] **Step 3: Update `webui/src/services/i18n.ts`**
+- [x] **Step 3: Update `webui/src/services/i18n.ts`**
 
 Add navigation keys in `messages.zh`:
 ```typescript
@@ -88,12 +88,12 @@ And in `messages.en`:
     restart_test: 'Re-measure Curve',
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --dir webui test run tests/i18n_nav.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add webui/src/services/i18n.ts webui/tests/i18n_nav.test.ts
@@ -111,19 +111,19 @@ git commit -m "feat(i18n): add localized step navigation labels"
 - Consumes: `sessionStore.roi`, `sessionStore.capture`, `sessionStore.roiQuality`
 - Produces: Cleaner right-hand diagnostic panel without nested next button; exposes ROI quality cleanly.
 
-- [ ] **Step 1: Inspect and remove nested proceed button**
+- [x] **Step 1: Inspect and remove nested proceed button**
 
 In `webui/src/components/CaptureStep.vue`:
 - Remove `proceedToDeadzone()` function.
 - Remove `<div class="pt-2"><button @click="proceedToDeadzone" ...></div>`.
 - Adjust right-side column `<div class="lg:col-span-4 space-y-4">` so it displays ROI diagnostic tools and coordinates without trailing bottom action button.
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run: `pnpm --dir webui run typecheck`
 Expected: PASS with 0 errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add webui/src/components/CaptureStep.vue
@@ -141,7 +141,7 @@ git commit -m "refactor(capture): remove nested next button to unify step layout
 - Consumes: `sessionStore.noise`, `sessionStore.startIdleNoise`
 - Produces: Full-width, clean Noise Benchmark card.
 
-- [ ] **Step 1: Remove 5-column button section and expand Noise card**
+- [x] **Step 1: Remove 5-column button section and expand Noise card**
 
 In `webui/src/components/DeadzoneStep.vue`:
 - Remove `goBack()` and `proceedToMeasurement()` functions and unused arrow icon imports.
@@ -172,12 +172,12 @@ In `webui/src/components/DeadzoneStep.vue`:
 </div>
 ```
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run: `pnpm --dir webui run typecheck`
 Expected: PASS with 0 errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add webui/src/components/DeadzoneStep.vue
@@ -196,23 +196,23 @@ git commit -m "refactor(deadzone): clean up bottom navigation buttons and expand
 - Consumes: `sessionStore.activeStep`, `sessionStore.lastResult`
 - Produces: Clean bottom table layout in Step 3 and seamless navigation handoff in Step 4.
 
-- [ ] **Step 1: Remove bottom full-width button row in MeasurementStep.vue**
+- [x] **Step 1: Remove bottom full-width button row in MeasurementStep.vue**
 
 In `webui/src/components/MeasurementStep.vue`:
 - Remove `goBack()` and `proceedToAnalysis()` functions.
 - Remove `<div class="flex items-center space-x-4 pt-2">` block containing the full-width previous/next buttons.
 
-- [ ] **Step 2: Verify AnalysisStep.vue layout alignment**
+- [x] **Step 2: Verify AnalysisStep.vue layout alignment**
 
 In `webui/src/components/AnalysisStep.vue`:
 - Ensure top summary banner and export card are visually balanced and margins consistent with `space-y-6`.
 
-- [ ] **Step 3: Run typecheck and test**
+- [x] **Step 3: Run typecheck and test**
 
 Run: `pnpm --dir webui run typecheck`
 Expected: PASS with 0 errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add webui/src/components/MeasurementStep.vue webui/src/components/AnalysisStep.vue
@@ -232,7 +232,7 @@ git commit -m "refactor(measurement): remove redundant bottom navigation buttons
   - Previous button (steps 2, 3, 4): `<button @click="navigatePrev">...`
   - Next button (steps 1, 2, 3, 4): `<button @click="navigateNext">...`
 
-- [ ] **Step 1: Implement navigation computed properties and handlers in `App.vue`**
+- [x] **Step 1: Implement navigation computed properties and handlers in `App.vue`**
 
 In `<script setup>` of `webui/src/App.vue`:
 ```typescript
@@ -281,7 +281,7 @@ function navigateNext() {
 }
 ```
 
-- [ ] **Step 2: Add template markup for the Sticky Bottom Bar**
+- [x] **Step 2: Add template markup for the Sticky Bottom Bar**
 
 In `webui/src/App.vue`:
 - Add `pb-28` to `<main>` container class.
@@ -334,13 +334,13 @@ In `webui/src/App.vue`:
 </footer>
 ```
 
-- [ ] **Step 3: Run typecheck and tests**
+- [x] **Step 3: Run typecheck and tests**
 
 Run: `pnpm --dir webui run typecheck`
 Run: `pnpm --dir webui test run`
 Expected: All tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add webui/src/App.vue
@@ -354,17 +354,17 @@ git commit -m "feat(layout): implement centralized sticky bottom navigation bar"
 **Files:**
 - Test: All webui tests
 
-- [ ] **Step 1: Execute all tests**
+- [x] **Step 1: Execute all tests**
 
 Run: `pnpm --dir webui test run`
 Expected: PASS.
 
-- [ ] **Step 2: Execute build validation**
+- [x] **Step 2: Execute build validation**
 
 Run: `pnpm --dir webui run build`
 Expected: Clean build into `webui/dist` without type errors or warnings.
 
-- [ ] **Step 3: Commit build verification**
+- [x] **Step 3: Commit build verification**
 
 ```bash
 git add docs/superpowers/plans/2026-09-04-unified-step-layout-navigation.md
