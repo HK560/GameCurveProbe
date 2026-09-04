@@ -6,8 +6,6 @@ import {
   Activity, 
   Play, 
   Square, 
-  ArrowLeft, 
-  ArrowRight, 
   Sliders, 
   CheckCircle2, 
   AlertCircle,
@@ -88,7 +86,6 @@ const progressPercent = computed(() => {
 })
 
 const lastResult = computed(() => sessionStore.lastResult)
-const hasCompleted = computed(() => !!lastResult.value && !isRunning.value)
 
 const currentPhase = computed(() => progressData.value?.phase || (isRunning.value ? 'running' : 'idle'))
 const phaseText = computed(() => {
@@ -208,14 +205,6 @@ async function cancelMeasurement() {
   if (activeJob.value?.id) {
     await sessionStore.cancelJob(activeJob.value.id)
   }
-}
-
-function goBack() {
-  sessionStore.activeStep = 2
-}
-
-function proceedToAnalysis() {
-  sessionStore.activeStep = 4
 }
 </script>
 
@@ -623,26 +612,6 @@ function proceedToAnalysis() {
           </tbody>
         </table>
       </div>
-    </div>
-
-    <!-- Navigation Buttons -->
-    <div class="flex items-center space-x-4 pt-2">
-      <button
-        @click="goBack"
-        :disabled="isRunning"
-        class="flex-1 bg-neutral-100 hover:bg-neutral-200 disabled:opacity-40 text-neutral-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
-      >
-        <ArrowLeft class="w-4 h-4" />
-        <span>{{ t('step_2_title') }}</span>
-      </button>
-      <button
-        @click="proceedToAnalysis"
-        :disabled="!hasCompleted"
-        class="flex-1 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer text-xs"
-      >
-        <span>{{ t('step_4_title') }}</span>
-        <ArrowRight class="w-4 h-4" />
-      </button>
     </div>
 
     <!-- Countdown Modal -->
