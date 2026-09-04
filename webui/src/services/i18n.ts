@@ -299,6 +299,9 @@ export const messages = {
 
     // Modals
     hotkey_settings_title: '设置',
+    tutorial_settings_title: '新手演示教程',
+    tutorial_settings_desc: '重新观看从窗口、ROI、死区和参数测定到报告解析的完整安全演示。',
+    tutorial_restart: '重新开始教程',
     hotkey_enabled: '启用全局快捷键',
     hotkey_start_label: '开始测定快捷键',
     hotkey_stop_label: '停止测定快捷键',
@@ -633,6 +636,9 @@ export const messages = {
 
     // Modals
     hotkey_settings_title: 'Settings',
+    tutorial_settings_title: 'Guided tutorial',
+    tutorial_settings_desc: 'Replay the complete safe demo from capture, ROI, and deadzones through measurement and report analysis.',
+    tutorial_restart: 'Restart tutorial',
     hotkey_enabled: 'Enable Global Hotkeys',
     hotkey_start_label: 'Start Hotkey',
     hotkey_stop_label: 'Stop Hotkey',

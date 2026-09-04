@@ -14,17 +14,19 @@ import {
 import type { RangeMode } from '../types/api'
 
 import { api } from '../services/api'
+import { shouldDisposeRealProbe, useTutorial } from '../composables/useTutorial'
 
 const sessionStore = useSessionStore()
+const tutorial = useTutorial()
 
 const currentStep = ref<number>(0.005)
 const activeProbeTarget = ref<'inner' | 'outer'>('inner')
 const isMeasuringNoise = ref<boolean>(false)
 
-const probeActive = computed(() => sessionStore.probe?.active ?? false)
-const expiresCountdown = computed(() => sessionStore.probe?.expires_in ?? 0)
+const probeActive = computed(() => tutorial.active.value && tutorial.phase.value === 'show-probe' ? true : (sessionStore.probe?.active ?? false))
+const expiresCountdown = computed(() => tutorial.active.value ? tutorial.demo.probe.expires_in : (sessionStore.probe?.expires_in ?? 0))
 
-const config = computed(() => sessionStore.config)
+const config = computed(() => tutorial.active.value ? tutorial.demo.config : sessionStore.config)
 const innerDeadzone = computed(() => config.value?.inner_deadzone ?? 0.05)
 const outerDeadzone = computed(() => config.value?.outer_deadzone ?? 0.95)
 const pointCount = computed(() => config.value?.point_count ?? 17)
@@ -163,7 +165,7 @@ function onProbeOutput(val: number) {
 onBeforeUnmount(() => {
   if (configDebounceTimer) clearTimeout(configDebounceTimer)
   if (probeRaf !== null) cancelAnimationFrame(probeRaf)
-  if (probeActive.value) {
+  if (shouldDisposeRealProbe(tutorial.active.value, probeActive.value)) {
     void probeLease.dispose()
   } else {
     probeLease.pause()
@@ -183,7 +185,7 @@ async function runNoiseBenchmark() {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div data-tour="deadzone-overview" class="space-y-6">
     <!-- Top Interactive Probing Bar -->
     <div class="p-4 bg-white border border-neutral-200/80 rounded-xl shadow-xs space-y-4">
       <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
@@ -213,6 +215,7 @@ async function runNoiseBenchmark() {
         <!-- Master Output Switcher Button -->
         <div>
           <button
+            data-tour="probe-toggle"
             @click="toggleProbe"
             class="py-2 px-4 rounded-lg font-medium text-xs flex items-center justify-center space-x-2 transition cursor-pointer shadow-xs"
             :class="[
@@ -231,7 +234,7 @@ async function runNoiseBenchmark() {
       <!-- Probing Targets & Step Selector Row -->
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
         <!-- Target Selector (6 cols) -->
-        <div class="md:col-span-6 flex items-center space-x-3">
+        <div data-tour="probe-targets" class="md:col-span-6 flex items-center space-x-3">
           <span class="text-xs text-neutral-500 shrink-0">{{ t('probe_target') }}:</span>
           <div class="flex rounded-lg bg-neutral-100 p-0.5 text-xs font-medium text-neutral-600 flex-1">
             <button
@@ -280,6 +283,7 @@ async function runNoiseBenchmark() {
 
     <!-- Main Single-Axis Dual-Thumb Deadzone Range Slider & Predicted Points Visualizer -->
     <DeadzoneRangeSlider
+      data-tour="deadzone-range"
       :inner-deadzone="innerDeadzone"
       :outer-deadzone="outerDeadzone"
       :point-count="pointCount"
@@ -297,7 +301,7 @@ async function runNoiseBenchmark() {
     />
 
     <!-- Noise Floor Benchmark Card -->
-    <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
+    <div data-tour="noise-test" class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
       <div class="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
         <div class="flex items-center space-x-2.5">
           <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
@@ -321,9 +325,9 @@ async function runNoiseBenchmark() {
           {{ isMeasuringNoise ? t('noise_measuring') : t('measure_noise') }}
         </button>
       </div>
-      <div v-if="sessionStore.noise" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
-        <span>{{ t('noise_x') }}: {{ sessionStore.noise.floor_x }} px/s</span>
-        <span>{{ t('noise_y') }}: {{ sessionStore.noise.floor_y }} px/s</span>
+      <div v-if="sessionStore.noise || (tutorial.active.value && tutorial.phase.value === 'show-noise')" class="p-2.5 bg-neutral-50 border border-neutral-200/60 rounded-lg text-xs font-mono text-neutral-700 flex justify-between">
+        <span>{{ t('noise_x') }}: {{ tutorial.active.value ? tutorial.demo.noise.floor_x : sessionStore.noise?.floor_x }} px/s</span>
+        <span>{{ t('noise_y') }}: {{ tutorial.active.value ? tutorial.demo.noise.floor_y : sessionStore.noise?.floor_y }} px/s</span>
       </div>
     </div>
   </div>

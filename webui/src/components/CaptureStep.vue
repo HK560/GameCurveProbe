@@ -7,8 +7,10 @@ import { RefreshCw, Play, Settings2, ShieldAlert, Monitor } from 'lucide-vue-nex
 import type { RoiRect } from '../types/api'
 import { captureErrorMessage, captureModeInfo, type CaptureMode } from '../services/captureModes'
 import { t } from '../services/i18n'
+import { useTutorial } from '../composables/useTutorial'
 
 const sessionStore = useSessionStore()
+const tutorial = useTutorial()
 
 const selectedWindowId = ref<number | null>(null)
 const selectedBackend = ref<CaptureMode>('auto')
@@ -16,13 +18,17 @@ const selectedFps = ref<number>(120)
 const errorMessage = ref<string | null>(null)
 
 const isAttached = computed(() => !!sessionStore.capture)
-const captureInfo = computed(() => sessionStore.capture)
-const roiQuality = computed(() => sessionStore.roiQuality)
 const modeInfo = computed(() => captureModeInfo(selectedBackend.value))
 const healthErrorMessage = computed(() => {
   const code = sessionStore.captureHealth?.last_error
   return code ? captureErrorMessage({ code }) : null
 })
+const displayWindows = computed(() => tutorial.active.value ? tutorial.demo.windows : sessionStore.windows)
+const displayCapture = computed(() => tutorial.active.value ? tutorial.demo.capture : sessionStore.capture)
+const displayRoi = computed(() => tutorial.active.value ? tutorial.demo.roi : sessionStore.roi)
+const displayQuality = computed(() => tutorial.active.value
+  ? (tutorial.phase.value === 'show-poor-roi' ? tutorial.demo.roiQualityPoor : tutorial.demo.roiQualityExcellent)
+  : sessionStore.roiQuality)
 let healthTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
@@ -46,6 +52,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(() => tutorial.active.value, active => {
+  if (active) selectedWindowId.value = tutorial.demo.windows[0].id
+}, { immediate: true })
 
 async function refreshWindows() {
   errorMessage.value = null
@@ -108,7 +118,7 @@ async function onRoiChange(newRoi: RoiRect) {
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
         <!-- Window Selector -->
-        <div class="lg:col-span-5 space-y-1.5">
+        <div data-tour="window-selector" class="lg:col-span-5 space-y-1.5">
           <div class="flex items-center justify-between">
             <label class="text-xs font-medium text-neutral-700">{{ t('target_window') }}</label>
             <button
@@ -126,7 +136,7 @@ async function onRoiChange(newRoi: RoiRect) {
         >
           <option :value="null" disabled>{{ t('select_window_placeholder') }}</option>
           <option
-            v-for="win in sessionStore.windows"
+            v-for="win in displayWindows"
             :key="win.id"
             :value="win.id"
           >
@@ -136,7 +146,7 @@ async function onRoiChange(newRoi: RoiRect) {
       </div>
 
       <!-- Backend Selector -->
-      <div class="lg:col-span-3 space-y-1.5">
+      <div data-tour="capture-backend" class="lg:col-span-3 space-y-1.5">
         <label class="text-xs font-medium text-neutral-700">{{ t('capture_engine') }}</label>
         <select
           v-model="selectedBackend"
@@ -150,7 +160,7 @@ async function onRoiChange(newRoi: RoiRect) {
       </div>
 
       <!-- Target FPS -->
-      <div class="lg:col-span-2 space-y-1.5">
+      <div data-tour="capture-fps" class="lg:col-span-2 space-y-1.5">
         <label class="text-xs font-medium text-neutral-700">{{ t('target_fps') }}</label>
         <select
           v-model="selectedFps"
@@ -164,7 +174,7 @@ async function onRoiChange(newRoi: RoiRect) {
       </div>
 
       <!-- Action Button -->
-      <div class="lg:col-span-2">
+      <div data-tour="capture-action" class="lg:col-span-2">
         <button
           type="button"
           @click="handleAttach"
@@ -197,25 +207,26 @@ async function onRoiChange(newRoi: RoiRect) {
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       <!-- Left: Interactive Canvas / Viewport -->
       <div class="lg:col-span-8 space-y-2">
-        <div class="flex items-center justify-between text-xs text-neutral-500">
+        <div data-tour="capture-status" class="flex items-center justify-between text-xs text-neutral-500">
           <span class="flex items-center space-x-1.5">
             <span class="w-2 h-2 rounded-full" :class="isAttached ? 'bg-emerald-500' : 'bg-neutral-400'"></span>
-            <span class="font-mono text-neutral-700">{{ isAttached ? `${t('connected_status_label')}: ${captureInfo?.width}×${captureInfo?.height} @ ${captureInfo?.target_fps}Hz` : t('no_signal_preview') }}</span>
+            <span class="font-mono text-neutral-700">{{ (isAttached || tutorial.active.value) ? `${t('connected_status_label')}: ${displayCapture?.width}×${displayCapture?.height} @ ${displayCapture?.target_fps}Hz` : t('no_signal_preview') }}</span>
           </span>
           <span class="text-neutral-400">{{ t('roi_instruction') }}</span>
         </div>
 
         <RoiSelector
-          :image-url="sessionStore.livePreviewUrl"
-          :image-width="sessionStore.capture?.width || 1920"
-          :image-height="sessionStore.capture?.height || 1080"
-          :current-roi="sessionStore.roi"
+          data-tour="roi-viewport"
+          :image-url="tutorial.active.value ? tutorial.demo.previewUrl : sessionStore.livePreviewUrl"
+          :image-width="displayCapture?.width || 1920"
+          :image-height="displayCapture?.height || 1080"
+          :current-roi="displayRoi"
           @update:roi="onRoiChange"
         />
       </div>
 
       <!-- Right: ROI Diagnostics and Quality Score Card -->
-      <div class="lg:col-span-4 bg-white border border-neutral-200/80 rounded-xl p-4 shadow-xs space-y-4">
+      <div data-tour="roi-quality" class="lg:col-span-4 bg-white border border-neutral-200/80 rounded-xl p-4 shadow-xs space-y-4">
         <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div class="flex items-center space-x-2.5">
             <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
@@ -233,23 +244,23 @@ async function onRoiChange(newRoi: RoiRect) {
         </div>
 
         <!-- Quality Badge and Progress -->
-        <QualityBadge :quality="roiQuality" />
+        <QualityBadge :quality="displayQuality" />
 
         <!-- Coordinate Display -->
-        <div v-if="sessionStore.roi" class="p-3 bg-neutral-50 rounded-lg border border-neutral-200/60 space-y-2">
+        <div v-if="displayRoi" data-tour="roi-coordinates" class="p-3 bg-neutral-50 rounded-lg border border-neutral-200/60 space-y-2">
           <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-700">{{ t('roi_size_info') }}</div>
           <div class="grid grid-cols-2 gap-2 text-xs font-mono text-neutral-600">
             <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
-              <span class="text-neutral-400">X:</span> {{ sessionStore.roi.x }} px
+              <span class="text-neutral-400">X:</span> {{ displayRoi.x }} px
             </div>
             <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
-              <span class="text-neutral-400">Y:</span> {{ sessionStore.roi.y }} px
+              <span class="text-neutral-400">Y:</span> {{ displayRoi.y }} px
             </div>
             <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
-              <span class="text-neutral-400">{{ t('width_label') }}:</span> {{ sessionStore.roi.width }} px
+              <span class="text-neutral-400">{{ t('width_label') }}:</span> {{ displayRoi.width }} px
             </div>
             <div class="bg-white px-2.5 py-1.5 rounded border border-neutral-200/60 shadow-2xs">
-              <span class="text-neutral-400">{{ t('height_label') }}:</span> {{ sessionStore.roi.height }} px
+              <span class="text-neutral-400">{{ t('height_label') }}:</span> {{ displayRoi.height }} px
             </div>
           </div>
         </div>

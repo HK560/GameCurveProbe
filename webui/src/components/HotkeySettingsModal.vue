@@ -5,7 +5,7 @@ import { useConnectionStore } from '../stores/connection'
 import { api } from '../services/api'
 import { soundSynth } from '../services/sound'
 import { t } from '../services/i18n'
-import { X, Keyboard, Volume2, VolumeX, Sparkles, Check, Gamepad2, Settings } from 'lucide-vue-next'
+import { X, Keyboard, Volume2, VolumeX, Sparkles, Check, Gamepad2, Settings, GraduationCap } from 'lucide-vue-next'
 
 const props = defineProps<{
   show: boolean
@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'start-tutorial'): void
 }>()
 
 const sessionStore = useSessionStore()
@@ -135,7 +136,7 @@ async function testWakeGame() {
 
 <template>
   <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-xs p-4">
-    <div class="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div class="bg-white rounded-2xl border border-neutral-200 shadow-2xl max-w-md max-h-[92vh] w-full overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
       <!-- Header -->
       <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
         <div class="flex items-center space-x-2.5">
@@ -155,7 +156,21 @@ async function testWakeGame() {
       </div>
 
       <!-- Body -->
-      <div class="p-5 space-y-5 text-xs text-neutral-700">
+      <div class="p-5 space-y-5 text-xs text-neutral-700 overflow-y-auto">
+        <div data-tour="settings-tutorial" class="space-y-3 p-3.5 bg-neutral-50 border border-neutral-200/70 rounded-xl">
+          <div class="flex items-start gap-3">
+            <GraduationCap class="w-4 h-4 mt-0.5 text-neutral-800 shrink-0" />
+            <div class="flex-1">
+              <div class="font-medium text-neutral-900">{{ t('tutorial_settings_title') }}</div>
+              <p class="mt-1 text-[11px] text-neutral-500 leading-relaxed">
+                {{ t('tutorial_settings_desc') }}
+              </p>
+            </div>
+          </div>
+          <button type="button" class="w-full py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium transition cursor-pointer" @click="emit('start-tutorial')">
+            {{ t('tutorial_restart') }}
+          </button>
+        </div>
         <!-- Global Hotkeys Card -->
         <div class="space-y-3 p-3.5 bg-neutral-50 border border-neutral-200/70 rounded-xl">
           <div class="flex items-center justify-between">

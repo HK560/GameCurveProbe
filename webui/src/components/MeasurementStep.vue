@@ -21,8 +21,10 @@ import {
 import type { RangeMode } from '../types/api'
 
 import CountdownModal from './CountdownModal.vue'
+import { useTutorial } from '../composables/useTutorial'
 
 const sessionStore = useSessionStore()
+const tutorial = useTutorial()
 const showCountdown = ref(false)
 const rangeMode = ref<RangeMode>(sessionStore.config?.range_mode || 'full')
 
@@ -105,8 +107,11 @@ const errorMessage = ref<string | null>(null)
 const logContainerRef = ref<HTMLElement | null>(null)
 const autoScroll = ref(true)
 const copied = ref(false)
+const displayLogs = computed(() => tutorial.active.value ? tutorial.demo.logs : sessionStore.measurementLogs)
 
-const activeJob = computed(() => sessionStore.activeJob)
+const activeJob = computed(() => tutorial.active.value && tutorial.phase.value === 'animate-measurement'
+  ? { id: 'tutorial', kind: 'measurement', state: 'running' as const, progress: { phase: 'point_retry', current_point: 8, total_points: 17, input_value: 0.5 } }
+  : sessionStore.activeJob)
 const isRunning = computed(() => activeJob.value?.state === 'running' || activeJob.value?.state === 'queued' || activeJob.value?.state === 'canceling')
 const progressData = computed(() => activeJob.value?.progress)
 const currentPoint = computed(() => progressData.value?.current_point || 0)
@@ -116,7 +121,7 @@ const progressPercent = computed(() => {
   return Math.round((currentPoint.value / totalPoints.value) * 100)
 })
 
-const lastResult = computed(() => sessionStore.lastResult)
+const lastResult = computed(() => tutorial.active.value ? tutorial.demo.result : sessionStore.lastResult)
 
 const currentPhase = computed(() => progressData.value?.phase || (isRunning.value ? 'running' : 'idle'))
 const phaseText = computed(() => {
@@ -152,6 +157,7 @@ const roiBoxStyle = computed(() => {
 })
 
 const displayPoints = computed(() => {
+  if (tutorial.active.value) return tutorial.demo.result.points
   if (isRunning.value && sessionStore.livePoints.length > 0) {
     return sessionStore.livePoints
   }
@@ -262,7 +268,7 @@ async function cancelMeasurement() {
       <!-- Main Controls Row (Strictly aligned 4 columns) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         <!-- 测定范围模式 -->
-        <div class="space-y-1.5">
+        <div data-tour="measurement-range" class="space-y-1.5">
           <div class="flex items-center justify-between h-4">
             <label class="text-xs font-medium text-neutral-700">{{ t('range_mode') }}</label>
           </div>
@@ -277,7 +283,7 @@ async function cancelMeasurement() {
         </div>
 
         <!-- 采样点密度 -->
-        <div class="space-y-1.5">
+        <div data-tour="measurement-parameters" class="space-y-1.5">
           <div class="flex items-center justify-between h-4">
             <label class="text-xs font-medium text-neutral-700">{{ t('point_density') }}</label>
             <span v-if="pointCountPreset === 'custom'" class="text-[11px] font-mono text-neutral-500 font-medium">
@@ -320,6 +326,7 @@ async function cancelMeasurement() {
         <div class="space-y-1.5">
           <div class="h-4"></div>
           <button
+            data-tour="measurement-start"
             v-if="!isRunning"
             type="button"
             @click="startMeasurement"
@@ -439,7 +446,7 @@ async function cancelMeasurement() {
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       <!-- Left Column: Live Screen Viewport with ROI Overlay -->
       <div class="lg:col-span-6 space-y-3">
-        <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
+        <div data-tour="measurement-progress" class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
           <div class="flex items-center justify-between border-b border-neutral-100 pb-2.5 flex-wrap gap-2">
             <div class="flex items-center space-x-2.5">
               <div class="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-900 flex items-center justify-center shrink-0">
@@ -561,7 +568,7 @@ async function cancelMeasurement() {
         </div>
 
         <!-- Terminal-Style Log Console -->
-        <div class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 relative shadow-xs">
+        <div data-tour="measurement-logs" class="p-4 bg-white border border-neutral-200/80 rounded-xl space-y-2.5 relative shadow-xs">
           <!-- Terminal Toolbar -->
           <div class="flex items-center justify-between border-b border-neutral-100 pb-2 flex-wrap gap-2">
             <div class="flex items-center space-x-2.5">
@@ -572,7 +579,7 @@ async function cancelMeasurement() {
                 <div class="flex items-center space-x-2">
                   <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-800">{{ t('measurement_logs') }}</h3>
                   <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-neutral-100 text-neutral-500 font-mono">
-                    {{ sessionStore.measurementLogs.length }}
+                    {{ displayLogs.length }}
                   </span>
                 </div>
                 <p class="text-[11px] text-neutral-400 font-mono">
@@ -618,14 +625,14 @@ async function cancelMeasurement() {
             class="h-[240px] overflow-y-auto font-mono text-xs p-2.5 space-y-1.5 bg-neutral-950 text-neutral-200 rounded-lg border border-neutral-800 select-text"
           >
             <div
-              v-if="sessionStore.measurementLogs.length === 0"
+              v-if="displayLogs.length === 0"
               class="h-full flex items-center justify-center text-neutral-500 text-xs text-center select-none"
             >
               {{ t('click_to_start_log_hint') }}
             </div>
 
             <div
-              v-for="log in sessionStore.measurementLogs"
+              v-for="log in displayLogs"
               :key="log.id"
               class="flex items-start space-x-2 text-[11px] leading-relaxed hover:bg-neutral-900 px-1 py-0.5 rounded transition-colors"
             >
@@ -642,7 +649,7 @@ async function cancelMeasurement() {
 
           <!-- Floating Return to Bottom Button -->
           <button
-            v-if="!autoScroll && sessionStore.measurementLogs.length > 0"
+            v-if="!autoScroll && displayLogs.length > 0"
             @click="scrollToBottom"
             class="absolute bottom-6 right-6 bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] px-2.5 py-1 rounded-full shadow border border-neutral-700 flex items-center space-x-1 cursor-pointer transition"
           >
