@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-09-04T10:32:00Z",
+  "session_id": "sim-power-exponential",
+  "config": {
+    "inner_deadzone": 0.0,
+    "outer_deadzone": 1.0,
+    "note": "Classic Concave Exponential Response (gamma ~ 2.0, gentle micro-aim, rapid outer turning)"
+  },
+  "points": [
+    { "input": 0.00, "velocity_px_s": 0.0, "normalized_speed": 0.0, "stability": 1.0, "valid": true, "attempts": 1 },
+    { "input": 0.05, "velocity_px_s": 3.8, "normalized_speed": 0.00, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.10, "velocity_px_s": 15.0, "normalized_speed": 0.01, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.15, "velocity_px_s": 34.0, "normalized_speed": 0.02, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.20, "velocity_px_s": 60.0, "normalized_speed": 0.04, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.25, "velocity_px_s": 94.0, "normalized_speed": 0.06, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.30, "velocity_px_s": 135.0, "normalized_speed": 0.09, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.35, "velocity_px_s": 184.0, "normalized_speed": 0.12, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.40, "velocity_px_s": 240.0, "normalized_speed": 0.16, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.45, "velocity_px_s": 304.0, "normalized_speed": 0.20, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.50, "velocity_px_s": 375.0, "normalized_speed": 0.25, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.55, "velocity_px_s": 454.0, "normalized_speed": 0.30, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.60, "velocity_px_s": 540.0, "normalized_speed": 0.36, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.65, "velocity_px_s": 634.0, "normalized_speed": 0.42, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.70, "velocity_px_s": 735.0, "normalized_speed": 0.49, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.75, "velocity_px_s": 844.0, "normalized_speed": 0.56, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.80, "velocity_px_s": 960.0, "normalized_speed": 0.64, "stability": 0.97, "valid": true, "attempts": 1 },
+    { "input": 0.85, "velocity_px_s": 1084.0, "normalized_speed": 0.72, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 0.90, "velocity_px_s": 1215.0, "normalized_speed": 0.81, "stability": 0.98, "valid": true, "attempts": 1 },
+    { "input": 0.95, "velocity_px_s": 1354.0, "normalized_speed": 0.90, "stability": 0.99, "valid": true, "attempts": 1 },
+    { "input": 1.00, "velocity_px_s": 1500.0, "normalized_speed": 1.00, "stability": 1.0, "valid": true, "attempts": 1 }
+  ]
+}

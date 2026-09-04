@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import CurveChart from './CurveChart.vue'
+import { fitResponseCurve, type FitModelType, type FitCandidate } from '../services/curveFitting'
 import { t } from '../services/i18n'
 import { 
   BarChart3, 
@@ -96,12 +97,31 @@ const recalculatedPoints = computed(() => {
   })
 })
 
-// Recalculate curve fitting analysis based on points in range
-const recalculatedAnalysis = computed(() => {
-  const pts = recalculatedPoints.value.filter(
-    (p) => p.in_analysis_range && p.valid && p.velocity_px_s !== null
+// Selected Model for Comparison ('auto' or specific candidate)
+const selectedModelType = ref<'auto' | FitModelType>('auto')
+
+// Compute curve fitting report
+const fitReport = computed(() => {
+  if (recalculatedPoints.value.length === 0) return null
+  return fitResponseCurve(
+    recalculatedPoints.value,
+    analysisInnerDeadzone.value,
+    analysisOuterDeadzone.value
   )
-  if (pts.length < 3) {
+})
+
+// Active candidate based on selection
+const activeCandidate = computed<FitCandidate | null>(() => {
+  if (!fitReport.value) return null
+  if (selectedModelType.value === 'auto') {
+    return fitReport.value.best
+  }
+  return fitReport.value.candidates[selectedModelType.value] || fitReport.value.best
+})
+
+// Recalculate analysis metrics for export compatibility
+const recalculatedAnalysis = computed(() => {
+  if (!activeCandidate.value) {
     return {
       curve_type: 'undetermined',
       confidence: 0.0,
@@ -109,70 +129,50 @@ const recalculatedAnalysis = computed(() => {
     }
   }
 
-  const xs = pts.map((p) => p.input)
-  const ys = pts.map((p) => p.velocity_px_s!)
-  const minV = Math.min(...ys)
-  const maxV = Math.max(...ys)
-  const vRange = maxV - minV
-
-  let drops = 0
-  let maxDrop = 0
-  for (let i = 1; i < ys.length; i++) {
-    const diff = ys[i] - ys[i - 1]
-    if (diff < -Math.max(1e-6, vRange * 0.03)) drops++
-    if (diff < 0) maxDrop = Math.max(maxDrop, -diff)
-  }
-
-  // Linear NRMSE
-  const n = xs.length
-  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0
-  for (let i = 0; i < n; i++) {
-    sumX += xs[i]
-    sumY += ys[i]
-    sumXY += xs[i] * ys[i]
-    sumXX += xs[i] * xs[i]
-  }
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX || 1)
-  const intercept = (sumY - slope * sumX) / n
-
-  let sse = 0
-  for (let i = 0; i < n; i++) {
-    const pred = slope * xs[i] + intercept
-    sse += (ys[i] - pred) ** 2
-  }
-  const rmse = Math.sqrt(sse / n)
-  const nrmse = vRange > 1e-6 ? rmse / vRange : rmse
-
-  let type = 'undetermined'
-  if (nrmse < 0.08 && drops === 0) type = 'linear'
-  else if (drops === 0 && ys[0] < minV + vRange * 0.2) type = 'exponential'
-  else if (drops === 0) type = 's_curve'
-
-  const confidence = Math.max(0, Math.min(1, 1 - nrmse))
-
   return {
-    curve_type: type,
-    confidence: Math.round(confidence * 10000) / 10000,
+    curve_type: activeCandidate.value.type,
+    confidence: Math.round(activeCandidate.value.confidence * 10000) / 10000,
     metrics: {
-      best_nrmse: Math.round(nrmse * 10000) / 10000,
-      monotonic_violations: drops,
-      largest_drop_px_s: Math.round(maxDrop * 100) / 100,
+      ...activeCandidate.value.params,
+      r2: Math.round(activeCandidate.value.r2 * 10000) / 10000,
+      nrmse: Math.round(activeCandidate.value.nrmse * 10000) / 10000,
+      bic: Math.round(activeCandidate.value.bic * 10) / 10,
     },
   }
 })
+
+const modelOptions = computed(() => [
+  {
+    type: 'auto' as const,
+    label: `${t('model_auto_label')}${fitReport.value ? ` (${fitReport.value.best.type})` : ''}`,
+  },
+  { type: 'linear' as const, label: t('model_linear_label') },
+  { type: 'power' as const, label: t('model_power_label') },
+  { type: 'piecewise1' as const, label: t('model_piecewise1_label') },
+  { type: 'piecewise2' as const, label: t('model_piecewise2_label') },
+  { type: 'bezier' as const, label: t('model_bezier_label') },
+])
 
 const curveTypeLabels = computed<Record<string, { label: string; desc: string }>>(() => ({
   linear: {
     label: t('model_linear_label'),
     desc: t('model_linear_desc'),
   },
-  exponential: {
-    label: t('model_exponential_label'),
-    desc: t('model_exponential_desc'),
+  power: {
+    label: t('model_power_label'),
+    desc: t('model_power_desc'),
   },
-  s_curve: {
-    label: t('model_scurve_label'),
-    desc: t('model_scurve_desc'),
+  piecewise1: {
+    label: t('model_piecewise1_label'),
+    desc: t('model_piecewise1_desc'),
+  },
+  piecewise2: {
+    label: t('model_piecewise2_label'),
+    desc: t('model_piecewise2_desc'),
+  },
+  bezier: {
+    label: t('model_bezier_label'),
+    desc: t('model_bezier_desc'),
   },
   undetermined: {
     label: t('model_undetermined_label'),
@@ -181,8 +181,17 @@ const curveTypeLabels = computed<Record<string, { label: string; desc: string }>
 }))
 
 const currentTypeInfo = computed(() => {
-  const curType = recalculatedAnalysis.value?.curve_type || 'undetermined'
-  return curveTypeLabels.value[curType] || curveTypeLabels.value.undetermined
+  if (!activeCandidate.value) {
+    return {
+      label: t('model_undetermined_label'),
+      desc: t('model_undetermined_desc'),
+    }
+  }
+  const curType = activeCandidate.value.type
+  return curveTypeLabels.value[curType] || {
+    label: activeCandidate.value.name,
+    desc: t('model_linear_desc'),
+  }
 })
 
 function saveBlob(blob: Blob, filename: string) {
@@ -248,7 +257,15 @@ async function handleFileSelected(e: Event) {
 
   try {
     const text = await file.text()
-    await api.importResult(text)
+    const parsed = JSON.parse(text)
+    if (parsed && Array.isArray(parsed.points)) {
+      sessionStore.loadSimulatedResult(parsed)
+    }
+    try {
+      await api.importResult(text)
+    } catch {
+      // Backend not running in standalone demo mode, local load is sufficient
+    }
     importMessage.value = `${t('import_success')} ${file.name}`
   } catch (err: any) {
     importMessage.value = `${t('import_failed')} ${err.message || t('json_parse_error')}`
@@ -265,26 +282,107 @@ function restartProbe() {
     <!-- Top Summary Banner -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
       <!-- Curve Model Card -->
-      <div class="lg:col-span-8 p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3 shadow-xs">
-        <div class="flex items-center justify-between">
+      <div class="lg:col-span-8 p-5 bg-white border border-neutral-200/80 rounded-xl space-y-3.5 shadow-xs">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center space-x-2">
-            <Sparkles class="w-4 h-4 text-neutral-900" />
+            <div class="w-6 h-6 rounded-md bg-neutral-900 text-white flex items-center justify-center">
+              <Sparkles class="w-3.5 h-3.5 text-neutral-100" />
+            </div>
             <h3 class="text-sm font-semibold text-neutral-900">{{ currentTypeInfo.label }}</h3>
+            <span
+              v-if="selectedModelType === 'auto'"
+              class="px-2 py-0.5 rounded text-[10px] font-medium bg-neutral-100 text-neutral-700 border border-neutral-200/80"
+            >
+              {{ t('model_auto_label') }}
+            </span>
           </div>
-          <div v-if="recalculatedAnalysis?.confidence !== undefined" class="px-2.5 py-0.5 bg-neutral-100 rounded-full text-xs font-mono text-neutral-700">
-            {{ t('fit_confidence') }}: <span class="font-bold text-neutral-900">{{ (recalculatedAnalysis.confidence * 100).toFixed(1) }}%</span>
+
+          <div class="flex items-center space-x-2 font-mono text-xs">
+            <div v-if="activeCandidate" class="px-2.5 py-0.5 bg-neutral-100 rounded-full text-neutral-700">
+              {{ t('metric_confidence') }}: <span class="font-bold text-neutral-900">{{ (activeCandidate.confidence * 100).toFixed(1) }}%</span>
+            </div>
+            <div v-if="activeCandidate" class="px-2.5 py-0.5 bg-neutral-100 rounded-full text-neutral-700">
+              {{ t('metric_r2') }}: <span class="font-bold text-neutral-900">{{ (activeCandidate.r2 * 100).toFixed(1) }}%</span>
+            </div>
           </div>
         </div>
+
         <p class="text-xs text-neutral-500 leading-relaxed">{{ currentTypeInfo.desc }}</p>
 
-        <div v-if="recalculatedAnalysis?.metrics && Object.keys(recalculatedAnalysis.metrics).length > 0" class="flex flex-wrap gap-2 pt-1 font-mono text-[11px]">
-          <span
-            v-for="(val, key) in recalculatedAnalysis.metrics"
-            :key="key"
-            class="px-2 py-0.5 bg-neutral-50 rounded border border-neutral-200/80 text-neutral-700"
+        <!-- Key Parameter Highlights -->
+        <div v-if="activeCandidate" class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-0.5 font-mono text-xs">
+          <!-- Piecewise1 extra accel parameters -->
+          <template v-if="activeCandidate.type === 'piecewise1'">
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg">
+              <span class="text-[10px] text-neutral-400 block">{{ t('metric_accel_threshold') }}</span>
+              <span class="font-bold text-neutral-900 text-sm">{{ activeCandidate.params.accelThreshold }}</span>
+            </div>
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg">
+              <span class="text-[10px] text-neutral-400 block">{{ t('metric_accel_ratio') }}</span>
+              <span class="font-bold text-neutral-900 text-sm">{{ activeCandidate.params.boostRatio }}x</span>
+            </div>
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg">
+              <span class="text-[10px] text-neutral-400 block">{{ t('metric_base_slope') }}</span>
+              <span class="font-medium text-neutral-800">{{ activeCandidate.params.baseSlope }} px/s</span>
+            </div>
+          </template>
+
+          <!-- Power curve parameters -->
+          <template v-else-if="activeCandidate.type === 'power'">
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg">
+              <span class="text-[10px] text-neutral-400 block">{{ t('metric_gamma') }}</span>
+              <span class="font-bold text-neutral-900 text-sm">{{ activeCandidate.params.gamma }}</span>
+            </div>
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg col-span-2">
+              <span class="text-[10px] text-neutral-400 block">{{ t('status') }}</span>
+              <span class="font-medium text-neutral-800">{{ activeCandidate.params.shape }}</span>
+            </div>
+          </template>
+
+          <!-- Linear parameters -->
+          <template v-else-if="activeCandidate.type === 'linear'">
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg col-span-2 sm:col-span-3">
+              <span class="text-[10px] text-neutral-400 block">{{ t('metric_base_slope') }}</span>
+              <span class="font-bold text-neutral-900 text-sm">{{ activeCandidate.params.physicalSlope }} px/s</span>
+            </div>
+          </template>
+
+          <!-- Piecewise2 parameters -->
+          <template v-else-if="activeCandidate.type === 'piecewise2'">
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg">
+              <span class="text-[10px] text-neutral-400 block">拐点 1 / 2</span>
+              <span class="font-bold text-neutral-900">{{ activeCandidate.params.breakpoint1 }} / {{ activeCandidate.params.breakpoint2 }}</span>
+            </div>
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg col-span-2">
+              <span class="text-[10px] text-neutral-400 block">各段相对斜率 (k1 / k2 / k3)</span>
+              <span class="font-medium text-neutral-800">{{ activeCandidate.params.k1 }} ➔ {{ activeCandidate.params.k2 }} ➔ {{ activeCandidate.params.k3 }}</span>
+            </div>
+          </template>
+
+          <!-- Bezier parameters -->
+          <template v-else-if="activeCandidate.type === 'bezier'">
+            <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg col-span-2 sm:col-span-3">
+              <span class="text-[10px] text-neutral-400 block">控制点坐标 P1 / P2</span>
+              <span class="font-medium text-neutral-800">{{ activeCandidate.params.p1 }} | {{ activeCandidate.params.p2 }}</span>
+            </div>
+          </template>
+        </div>
+
+        <!-- Model Comparison Switcher Pills -->
+        <div class="pt-2.5 border-t border-neutral-100 flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] text-neutral-500 font-medium mr-1">{{ t('model_selector_title') }}:</span>
+          <button
+            v-for="opt in modelOptions"
+            :key="opt.type"
+            type="button"
+            @click="selectedModelType = opt.type"
+            class="px-2.5 py-1 rounded text-[11px] font-medium transition cursor-pointer"
+            :class="selectedModelType === opt.type
+              ? 'bg-neutral-900 text-white shadow-xs'
+              : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'"
           >
-            {{ key }}: {{ val }}
-          </span>
+            {{ opt.label }}
+          </button>
         </div>
       </div>
 
@@ -466,6 +564,9 @@ function restartProbe() {
           :imported-points="importedResult?.points ?? []"
           :inner-deadzone="analysisInnerDeadzone"
           :outer-deadzone="analysisOuterDeadzone"
+          :fitted-curve="activeCandidate?.curvePoints"
+          :breakpoints="activeCandidate?.breakpoints"
+          :outlier-inputs="fitReport?.outlierInputs"
         />
       </div>
       <div v-else class="h-64 flex flex-col items-center justify-center text-neutral-400 text-xs space-y-2">

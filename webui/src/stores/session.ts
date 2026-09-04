@@ -279,6 +279,23 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  function loadSimulatedResult(data: SessionResult) {
+    internalLastResult.value = data
+    importedResult.value = data
+    if (session.value) {
+      session.value.last_result = data
+      if (data.config) {
+        session.value.config = { ...session.value.config, ...data.config }
+      }
+    } else {
+      session.value = {
+        id: 'simulated-session',
+        config: data.config ? (data.config as any) : { inner_deadzone: 0.0, outer_deadzone: 1.0 },
+        last_result: data,
+      } as any
+    }
+  }
+
   function initListeners() {
     ws.onEvent((ev) => handleWsEvent(ev))
     ws.onPreview((url, meta) => {
@@ -322,6 +339,7 @@ export const useSessionStore = defineStore('session', () => {
     startMeasurement,
     startIdleNoise,
     cancelJob,
+    loadSimulatedResult,
     handleWsEvent,
     initListeners,
   }
