@@ -4,6 +4,16 @@ import tailwindcss from '@tailwindcss/vite'
 import { codeInspectorPlugin } from 'code-inspector-plugin'
 import path from 'path'
 
+import fs from 'fs'
+
+const antigravityCmd = path.join(
+  process.env.LOCALAPPDATA || '',
+  'Programs/Antigravity IDE/bin/antigravity-ide.cmd'
+)
+process.env.CODE_EDITOR =
+  process.env.CODE_EDITOR ||
+  (fs.existsSync(antigravityCmd) ? antigravityCmd : 'antigravity-ide')
+
 export default defineConfig({
   plugins: [
     vue(),

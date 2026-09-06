@@ -21,6 +21,7 @@ export const messages = {
     app_title: 'GameCurveProbe',
     app_subtitle: '游戏手柄摇杆响应曲线测量',
     version: 'v2.0',
+    qq_group: 'QQ 交流群 (点击加入)',
     connected: '服务已连接',
     disconnected: '未连接',
     no_window_captured: '未抓取窗口',
@@ -294,6 +295,14 @@ export const messages = {
     status_valid: '有效',
     status_invalid: '失稳',
     status_outside: '死区截取外',
+    status_excluded: '已手动排除',
+    delete_point: '排除/删除该点位',
+    restore_point: '恢复该点位',
+    delete_selected: '删除所选',
+    excluded_points_count: '已手动排除 {n} 个点位',
+    restore_all_points: '恢复全部排除点位',
+    select_all: '全选',
+    actions: '操作',
     no_data_hint: '暂无测定数据，请在步骤 3 中启动测定',
 
     // Chart tooltips & Legend
@@ -373,6 +382,7 @@ export const messages = {
     app_title: 'GameCurveProbe',
     app_subtitle: 'Controller Response Curve Measurement',
     version: 'v2.0',
+    qq_group: 'QQ Group (Click to join)',
     connected: 'Service Connected',
     disconnected: 'Disconnected',
     no_window_captured: 'No Window Captured',
@@ -646,6 +656,14 @@ export const messages = {
     status_valid: 'Valid (In Range)',
     status_invalid: 'Unstable',
     status_outside: 'Outside Range',
+    status_excluded: 'Manually Excluded',
+    delete_point: 'Exclude/Delete this point',
+    restore_point: 'Restore this point',
+    delete_selected: 'Delete Selected',
+    excluded_points_count: '{n} point(s) excluded',
+    restore_all_points: 'Restore All Excluded Points',
+    select_all: 'Select All',
+    actions: 'Actions',
     no_data_hint: 'No measurement data available. Start probe in Step 3.',
 
     // Chart tooltips & Legend
@@ -722,7 +740,13 @@ export const messages = {
   }
 }
 
-export function t(key: keyof typeof messages['zh']): string {
+export function t(key: keyof typeof messages['zh'], params?: Record<string, string | number>): string {
   const dict = messages[currentLocale.value] || messages.zh
-  return dict[key] || messages.zh[key] || key
+  let text = dict[key] || messages.zh[key] || key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
+    }
+  }
+  return text
 }

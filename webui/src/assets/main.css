@@ -69,9 +69,11 @@
   width: auto;
   height: auto;
   color: rgb(115 115 115);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
+  top: 18px;
+  right: 18px;
   transition: color 0.15s ease;
 }
 
