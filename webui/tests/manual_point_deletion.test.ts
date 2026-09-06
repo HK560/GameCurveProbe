@@ -68,7 +68,7 @@ describe('Manual Point Deletion & Recalculation', () => {
 
     // 验证 CSV 导出中不含 0.5 坏点
     const csvStr = buildDseCsv(fitReport!.best, activePoints, 0.0, 1.0, false)
-    const lines = csvStr.trim().split('\n')
+    const lines = csvStr.trim().split('\n').filter((l) => !l.startsWith('#'))
     // 包含表头 + 4 个有效点位
     expect(lines.length).toBe(5)
     expect(lines.some((line) => line.startsWith('3,50.0%') || line.includes(',50.0%,'))).toBe(false)

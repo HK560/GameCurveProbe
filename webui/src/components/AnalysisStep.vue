@@ -4,7 +4,7 @@ import { useSessionStore } from '../stores/session'
 import { api } from '../services/api'
 import CurveChart from './CurveChart.vue'
 import { fitResponseCurve, type FitModelType, type FitCandidate } from '../services/curveFitting'
-import { buildControllerMetaJson, buildDseCsv } from '../services/curveExport'
+import { buildMultiLayerControllerMetaJson, buildControllerMetaJson, buildDseCsv, parseExportedCurveFile, type CurveExportContentMode } from '../services/curveExport'
 import { t } from '../services/i18n'
 import { useTutorial } from '../composables/useTutorial'
 import { 
@@ -289,41 +289,58 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-const exportNormalizeToFullScale = ref<boolean>(true)
+const exportContentMode = ref<CurveExportContentMode>('normalized_and_fitted')
 const copiedFormat = ref<'json' | 'csv' | null>(null)
 
 function getExportContent(format: 'json' | 'csv'): string {
   if (recalculatedPoints.value.length === 0) return ''
-  if (format === 'csv') {
-    return buildDseCsv(
+
+  if (exportContentMode.value === 'normalized_and_fitted') {
+    if (format === 'csv') return ''
+    return buildMultiLayerControllerMetaJson(
       activeCandidate.value,
       recalculatedPoints.value,
       analysisInnerDeadzone.value,
       analysisOuterDeadzone.value,
-      exportNormalizeToFullScale.value
+      currentTypeInfo.value.label,
+      t('export_layer_measured'),
+      t('export_layer_fitted_prefix')
     )
   } else {
-    return buildControllerMetaJson(
-      activeCandidate.value,
-      recalculatedPoints.value,
-      analysisInnerDeadzone.value,
-      analysisOuterDeadzone.value,
-      `GameCurveProbe ${currentTypeInfo.value.label}`,
-      exportNormalizeToFullScale.value
-    )
+    if (format === 'csv') {
+      return buildDseCsv(
+        activeCandidate.value,
+        recalculatedPoints.value,
+        analysisInnerDeadzone.value,
+        analysisOuterDeadzone.value,
+        false
+      )
+    } else {
+      return buildControllerMetaJson(
+        activeCandidate.value,
+        recalculatedPoints.value,
+        analysisInnerDeadzone.value,
+        analysisOuterDeadzone.value,
+        `GameCurveProbe ${currentTypeInfo.value.label}`,
+        false
+      )
+    }
   }
 }
 
 async function downloadExport(format: 'json' | 'csv') {
   if (recalculatedPoints.value.length === 0) return
+  if (format === 'csv' && exportContentMode.value === 'normalized_and_fitted') return
 
   const dateStr = new Date().toISOString().slice(0, 10)
   const rangeStr = `${(analysisInnerDeadzone.value * 100).toFixed(0)}-${(analysisOuterDeadzone.value * 100).toFixed(0)}`
   const modelTypeStr = activeCandidate.value?.type || 'curve'
-  const normTag = exportNormalizeToFullScale.value ? 'norm' : 'raw'
-  const filename = `gamecurveprobe_${modelTypeStr}_${normTag}_${rangeStr}_${dateStr}.${format}`
+  const modeTag = exportContentMode.value === 'normalized_and_fitted' ? 'norm_fitted' : 'raw_dz'
+  const filename = `gamecurveprobe_${modelTypeStr}_${modeTag}_${rangeStr}_${dateStr}.${format}`
 
   const content = getExportContent(format)
+  if (!content) return
+
   const mimeType = format === 'csv' ? 'text/csv;charset=utf-8;' : 'application/json;charset=utf-8;'
   const blob = new Blob([content], { type: mimeType })
   saveBlob(blob, filename)
@@ -331,6 +348,8 @@ async function downloadExport(format: 'json' | 'csv') {
 
 async function copyExport(format: 'json' | 'csv') {
   if (recalculatedPoints.value.length === 0) return
+  if (format === 'csv' && exportContentMode.value === 'normalized_and_fitted') return
+
   const content = getExportContent(format)
   if (!content) return
 
@@ -358,10 +377,9 @@ async function handleFileSelected(e: Event) {
 
   try {
     const text = await file.text()
-    const parsed = JSON.parse(text)
-    if (parsed && Array.isArray(parsed.points)) {
-      sessionStore.loadSimulatedResult(parsed)
-    }
+    const parsedResult = parseExportedCurveFile(text, file.name)
+    sessionStore.loadSimulatedResult(parsedResult)
+
     try {
       await api.importResult(text)
     } catch {
@@ -370,6 +388,8 @@ async function handleFileSelected(e: Event) {
     importMessage.value = `${t('import_success')} ${file.name}`
   } catch (err: any) {
     importMessage.value = `${t('import_failed')} ${err.message || t('json_parse_error')}`
+  } finally {
+    target.value = ''
   }
 }
 
@@ -507,31 +527,31 @@ function restartProbe() {
           </div>
         </div>
 
-        <!-- Point Mode Switch -->
+        <!-- Export Content Mode Switch -->
         <div class="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-lg space-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-[11px] font-medium text-neutral-700">{{ t('export_coordinate_mode') }}</span>
+            <span class="text-[11px] font-medium text-neutral-700">{{ t('export_content_type') }}</span>
             <div class="inline-flex rounded-md p-0.5 bg-neutral-200/80 text-[10px]">
               <button
                 type="button"
-                @click="exportNormalizeToFullScale = true"
+                @click="exportContentMode = 'normalized_and_fitted'"
                 class="px-2 py-0.5 rounded font-medium transition cursor-pointer"
-                :class="exportNormalizeToFullScale ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'"
+                :class="exportContentMode === 'normalized_and_fitted' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'"
               >
-                {{ t('export_mode_normalized') }}
+                {{ t('export_mode_normalized_fitted') }}
               </button>
               <button
                 type="button"
-                @click="exportNormalizeToFullScale = false"
+                @click="exportContentMode = 'raw_with_deadzone'"
                 class="px-2 py-0.5 rounded font-medium transition cursor-pointer"
-                :class="!exportNormalizeToFullScale ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'"
+                :class="exportContentMode === 'raw_with_deadzone' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'"
               >
-                {{ t('export_mode_raw') }}
+                {{ t('export_mode_raw_deadzone') }}
               </button>
             </div>
           </div>
           <p class="text-[10px] text-neutral-400 leading-tight">
-            {{ exportNormalizeToFullScale ? t('export_mode_normalized_hint') : t('export_mode_raw_hint') }}
+            {{ exportContentMode === 'normalized_and_fitted' ? t('export_mode_normalized_fitted_hint') : t('export_mode_raw_deadzone_hint') }}
           </p>
         </div>
 
@@ -561,23 +581,28 @@ function restartProbe() {
           </div>
 
           <!-- CSV Export & Copy Split Button -->
-          <div class="inline-flex rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-800 shadow-xs overflow-hidden transition">
+          <div
+            class="inline-flex rounded-lg border shadow-xs overflow-hidden transition"
+            :class="exportContentMode === 'normalized_and_fitted'
+              ? 'bg-neutral-100/60 border-neutral-200/50 text-neutral-400'
+              : 'bg-neutral-100 border-neutral-200 text-neutral-800'"
+          >
             <button
               type="button"
               @click="downloadExport('csv')"
-              :disabled="recalculatedPoints.length === 0"
-              :title="t('export_csv')"
-              class="flex-1 py-2 pl-3 pr-2 hover:bg-neutral-200/80 disabled:opacity-30 disabled:hover:bg-neutral-100 flex items-center justify-center space-x-1.5 text-xs font-medium transition cursor-pointer"
+              :disabled="recalculatedPoints.length === 0 || exportContentMode === 'normalized_and_fitted'"
+              :title="exportContentMode === 'normalized_and_fitted' ? t('export_csv_disabled_hint') : t('export_csv')"
+              class="flex-1 py-2 pl-3 pr-2 hover:bg-neutral-200/80 disabled:opacity-30 disabled:hover:bg-neutral-100/60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 text-xs font-medium transition cursor-pointer"
             >
-              <FileSpreadsheet class="w-3.5 h-3.5 text-neutral-700" />
+              <FileSpreadsheet class="w-3.5 h-3.5" :class="exportContentMode === 'normalized_and_fitted' ? 'text-neutral-400' : 'text-neutral-700'" />
               <span>{{ t('export_csv') }}</span>
             </button>
             <button
               type="button"
               @click="copyExport('csv')"
-              :disabled="recalculatedPoints.length === 0"
-              :title="copiedFormat === 'csv' ? t('copied_csv') : t('copy_csv')"
-              class="px-2.5 py-2 border-l border-neutral-200 hover:bg-neutral-200/80 active:bg-neutral-200 disabled:opacity-30 disabled:hover:bg-neutral-100 flex items-center justify-center transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+              :disabled="recalculatedPoints.length === 0 || exportContentMode === 'normalized_and_fitted'"
+              :title="exportContentMode === 'normalized_and_fitted' ? t('export_csv_disabled_hint') : (copiedFormat === 'csv' ? t('copied_csv') : t('copy_csv'))"
+              class="px-2.5 py-2 border-l border-neutral-200 hover:bg-neutral-200/80 active:bg-neutral-200 disabled:opacity-30 disabled:hover:bg-neutral-100/60 disabled:cursor-not-allowed flex items-center justify-center transition cursor-pointer text-neutral-600 hover:text-neutral-900"
             >
               <Check v-if="copiedFormat === 'csv'" class="w-3.5 h-3.5 text-emerald-600" />
               <Copy v-else class="w-3.5 h-3.5" />
@@ -596,7 +621,7 @@ function restartProbe() {
           <input
             ref="fileInput"
             type="file"
-            accept=".json"
+            accept=".json,.cmcurve.json,.cmcurves.json,.csv,.txt"
             class="hidden"
             @change="handleFileSelected"
           />
@@ -817,7 +842,6 @@ function restartProbe() {
             <tr
               v-for="pt in tablePoints"
               :key="pt.originalIndex"
-              class="transition"
               :class="[
                 pt.is_excluded
                   ? 'bg-neutral-100/60 text-neutral-400 opacity-60 line-through decoration-neutral-400'

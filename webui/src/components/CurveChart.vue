@@ -143,6 +143,9 @@ function updateChart() {
   }
 
   const option: any = {
+    animation: false,
+    animationDuration: 0,
+    animationDurationUpdate: 0,
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',

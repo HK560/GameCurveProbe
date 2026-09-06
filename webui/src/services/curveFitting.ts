@@ -25,6 +25,7 @@ export interface FitCandidate {
   breakpoints?: number[] // Physical input coordinates (e.g. 0.94)
   curvePoints: [number, number][] // [x_input, y_speed_px_s] 100 smooth interpolation points
   bezierControlPoints?: { p1: { x: number; y: number }; p2: { x: number; y: number } }
+  keyPoints?: { x: number; y: number }[]
   normalizedPoints?: { x: number; y: number }[] // 101 normalized points in 0-100 range
 }
 
@@ -143,6 +144,25 @@ function computeMetrics(
   return { mse, nrmse, r2, bic, confidence }
 }
 
+// Helper to generate 100 chart interpolation points honoring deadzones and valid range
+function generateCurvePoints(
+  evalW: (u: number) => number,
+  vMin: number,
+  vRange: number,
+  effInner: number,
+  effRange: number
+): [number, number][] {
+  const points: [number, number][] = []
+  for (let i = 0; i < 100; i++) {
+    const u = i / 99
+    const w = Math.max(0, Math.min(1, evalW(u)))
+    const x = effInner + u * effRange
+    const y = vMin + w * vRange
+    points.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
+  }
+  return points
+}
+
 // -------------------------------------------------------------
 // Model 1: Linear Fit
 // -------------------------------------------------------------
@@ -174,14 +194,7 @@ function fitLinear(
   const metrics = computeMetrics(inliers.map((pt) => pt.w), predicted, 2)
 
   // Generate 100 interpolation points
-  const curvePoints: [number, number][] = []
-  for (let i = 0; i < 100; i++) {
-    const u = i / 99
-    const w = Math.max(0, Math.min(1, slope * u + intercept))
-    const x = innerDz + u * dzRange
-    const y = vMin + w * vRange
-    curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
-  }
+  const curvePoints = generateCurvePoints((u) => slope * u + intercept, vMin, vRange, innerDz, dzRange)
 
   const normalizedPoints: { x: number; y: number }[] = []
   for (let i = 0; i <= 100; i++) {
@@ -202,6 +215,10 @@ function fitLinear(
       intercept: Math.round(intercept * 1000) / 1000,
       physicalSlope: Math.round(((slope * vRange) / dzRange) * 10) / 10,
     },
+    keyPoints: [
+      { x: 0, y: 0 },
+      { x: 100, y: 100 },
+    ],
     curvePoints,
     normalizedPoints,
   }
@@ -251,14 +268,7 @@ function fitPower(
   const predicted = inliers.map((pt) => Math.pow(Math.max(0, pt.u), bestGamma))
   const metrics = computeMetrics(inliers.map((pt) => pt.w), predicted, 1)
 
-  const curvePoints: [number, number][] = []
-  for (let i = 0; i < 100; i++) {
-    const u = i / 99
-    const w = Math.pow(u, bestGamma)
-    const x = innerDz + u * dzRange
-    const y = vMin + w * vRange
-    curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
-  }
+  const curvePoints = generateCurvePoints((u) => Math.pow(u, bestGamma), vMin, vRange, innerDz, dzRange)
 
   const normalizedPoints: { x: number; y: number }[] = []
   for (let i = 0; i <= 100; i++) {
@@ -278,6 +288,17 @@ function fitPower(
       gamma: Math.round(bestGamma * 100) / 100,
       shape: bestGamma > 1.05 ? '下凹加速型' : bestGamma < 0.95 ? '上凸灵敏型' : '接近线性',
     },
+    bezierControlPoints: {
+      p1: { x: 33.3, y: Math.round(Math.pow(0.333, bestGamma) * 10000) / 100 },
+      p2: { x: 66.7, y: Math.round(Math.pow(0.667, bestGamma) * 10000) / 100 },
+    },
+    keyPoints: [
+      { x: 0, y: 0 },
+      { x: 25, y: Math.round(Math.pow(0.25, bestGamma) * 10000) / 100 },
+      { x: 50, y: Math.round(Math.pow(0.50, bestGamma) * 10000) / 100 },
+      { x: 75, y: Math.round(Math.pow(0.75, bestGamma) * 10000) / 100 },
+      { x: 100, y: 100 },
+    ],
     curvePoints,
     normalizedPoints,
   }
@@ -352,14 +373,7 @@ function fitPiecewise1(
   const physBreakpoint = innerDz + bestUb * dzRange
   const boostRatio = Math.max(0.1, bestK2 / Math.max(0.01, bestK1))
 
-  const curvePoints: [number, number][] = []
-  for (let i = 0; i < 100; i++) {
-    const u = i / 99
-    const w = evalPiecewise(u)
-    const x = innerDz + u * dzRange
-    const y = vMin + w * vRange
-    curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
-  }
+  const curvePoints = generateCurvePoints(evalPiecewise, vMin, vRange, innerDz, dzRange)
 
   const normalizedPoints: { x: number; y: number }[] = []
   for (let i = 0; i <= 100; i++) {
@@ -382,6 +396,11 @@ function fitPiecewise1(
       baseSlope: Math.round(((bestK1 * vRange) / dzRange) * 10) / 10,
       accelSlope: Math.round(((bestK2 * vRange) / dzRange) * 10) / 10,
     },
+    keyPoints: [
+      { x: 0, y: 0 },
+      { x: Math.round(bestUb * 10000) / 100, y: Math.round(wb * 10000) / 100 },
+      { x: 100, y: 100 },
+    ],
     curvePoints,
     normalizedPoints,
   }
@@ -481,14 +500,7 @@ function fitPiecewise2(
   const bp1 = innerDz + bestUb1 * dzRange
   const bp2 = innerDz + bestUb2 * dzRange
 
-  const curvePoints: [number, number][] = []
-  for (let i = 0; i < 100; i++) {
-    const u = i / 99
-    const w = evalPiecewise2(u)
-    const x = innerDz + u * dzRange
-    const y = vMin + w * vRange
-    curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
-  }
+  const curvePoints = generateCurvePoints(evalPiecewise2, vMin, vRange, innerDz, dzRange)
 
   const normalizedPoints: { x: number; y: number }[] = []
   for (let i = 0; i <= 100; i++) {
@@ -512,6 +524,12 @@ function fitPiecewise2(
       k2: Math.round(bestK2 * 100) / 100,
       k3: Math.round(bestK3 * 100) / 100,
     },
+    keyPoints: [
+      { x: 0, y: 0 },
+      { x: Math.round(bestUb1 * 10000) / 100, y: Math.round(w1 * 10000) / 100 },
+      { x: Math.round(bestUb2 * 10000) / 100, y: Math.round(w2 * 10000) / 100 },
+      { x: 100, y: 100 },
+    ],
     curvePoints,
     normalizedPoints,
   }
@@ -576,14 +594,7 @@ function fitCubicBezier(
   )
   const metrics = computeMetrics(inliers.map((pt) => pt.w), predicted, 4)
 
-  const curvePoints: [number, number][] = []
-  for (let i = 0; i < 100; i++) {
-    const u = i / 99
-    const w = sampleBezierY(u, bestP1[0], bestP1[1], bestP2[0], bestP2[1])
-    const x = innerDz + u * dzRange
-    const y = vMin + Math.max(0, Math.min(1, w)) * vRange
-    curvePoints.push([Math.round(x * 1000) / 1000, Math.round(y * 10) / 10])
-  }
+  const curvePoints = generateCurvePoints((u) => sampleBezierY(u, bestP1[0], bestP1[1], bestP2[0], bestP2[1]), vMin, vRange, innerDz, dzRange)
 
   const bezierControlPoints = {
     p1: {
@@ -658,20 +669,29 @@ export function fitResponseCurve(
   const vRange = vMax - vMin
   if (vRange <= 1e-6) return null
 
+  const inlierInputs = activeInliersRaw.map((p) => p.input)
+  const minInlierInput = Math.min(...inlierInputs)
+  const maxInlierInput = Math.max(...inlierInputs)
+
+  // Align active normalization domain strictly with actual valid points & deadzone bounds
+  const effInner = Math.max(inner, minInlierInput)
+  const effOuter = Math.min(outer, maxInlierInput)
+  const effRange = Math.max(0.001, effOuter - effInner)
+
   // 3. Map inliers to normalized 2D points [0, 1]
   const activeInliers: Point2D[] = activeInliersRaw.map((p) => ({
-    u: Math.max(0, Math.min(1, (p.input - inner) / dzRange)),
+    u: Math.max(0, Math.min(1, (p.input - effInner) / effRange)),
     w: Math.max(0, Math.min(1, (p.velocity_px_s! - vMin) / vRange)),
     xOrig: p.input,
     vOrig: p.velocity_px_s!,
   }))
 
-  // Fit all 5 candidate models
-  const linearCandidate = fitLinear(activeInliers, vMin, vRange, inner, dzRange)
-  const powerCandidate = fitPower(activeInliers, vMin, vRange, inner, dzRange)
-  const piecewise1Candidate = fitPiecewise1(activeInliers, vMin, vRange, inner, dzRange)
-  const piecewise2Candidate = fitPiecewise2(activeInliers, vMin, vRange, inner, dzRange)
-  const bezierCandidate = fitCubicBezier(activeInliers, vMin, vRange, inner, dzRange)
+  // Fit all 5 candidate models using effInner & effRange
+  const linearCandidate = fitLinear(activeInliers, vMin, vRange, effInner, effRange)
+  const powerCandidate = fitPower(activeInliers, vMin, vRange, effInner, effRange)
+  const piecewise1Candidate = fitPiecewise1(activeInliers, vMin, vRange, effInner, effRange)
+  const piecewise2Candidate = fitPiecewise2(activeInliers, vMin, vRange, effInner, effRange)
+  const bezierCandidate = fitCubicBezier(activeInliers, vMin, vRange, effInner, effRange)
 
   const candidates: Record<FitModelType, FitCandidate> = {
     linear: linearCandidate,
