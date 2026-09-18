@@ -43,10 +43,13 @@ const pointCount = computed<number>(() => {
 })
 
 // Duration Presets & Custom Input
-const initialSettleMs = sessionStore.config?.settle_ms || 300
+const initialSettleMs = sessionStore.config?.settle_ms || 1000
 const initialSampleMs = sessionStore.config?.sample_ms || 700
 
 const getInitialDurationPreset = () => {
+  if (initialSettleMs === 1000 && initialSampleMs === 700) return 'standard'
+  if (initialSettleMs === 800 && initialSampleMs === 500) return 'fast'
+  if (initialSettleMs === 1200 && initialSampleMs === 1000) return 'precise'
   if (initialSettleMs === 300 && initialSampleMs === 700) return 'standard'
   if (initialSettleMs === 200 && initialSampleMs === 500) return 'fast'
   if (initialSettleMs === 400 && initialSampleMs === 1000) return 'precise'
@@ -57,11 +60,18 @@ const durationPreset = ref<string>(getInitialDurationPreset())
 const customSettleMs = ref<number>(initialSettleMs)
 const customSampleMs = ref<number>(initialSampleMs)
 
+const repeats = computed<number>(() => {
+  if (durationPreset.value === 'precise') return 3
+  if (durationPreset.value === 'fast') return 1
+  if (durationPreset.value === 'standard') return 2
+  return sessionStore.config?.repeats || 2
+})
+
 const settleMs = computed<number>(() => {
-  if (durationPreset.value === 'standard') return 300
-  if (durationPreset.value === 'fast') return 200
-  if (durationPreset.value === 'precise') return 400
-  return Math.max(50, Math.min(5000, customSettleMs.value || 300))
+  if (durationPreset.value === 'standard') return 1000
+  if (durationPreset.value === 'fast') return 800
+  if (durationPreset.value === 'precise') return 1200
+  return Math.max(50, Math.min(5000, customSettleMs.value || 1000))
 })
 
 const sampleMs = computed<number>(() => {
@@ -73,7 +83,7 @@ const sampleMs = computed<number>(() => {
 
 const estimatedDurationSec = computed<number>(() => {
   const pts = pointCount.value
-  const singlePtSec = (settleMs.value + sampleMs.value) / 1000
+  const singlePtSec = (settleMs.value + sampleMs.value * repeats.value) / 1000
   const totalMeasurements = pts <= 1 ? 1 : 1 + (pts - 1) * 2
   return Math.round(totalMeasurements * singlePtSec + (pts - 1) * 0.1)
 })
@@ -81,13 +91,13 @@ const estimatedDurationSec = computed<number>(() => {
 watch(durationPreset, (newPreset, oldPreset) => {
   if (newPreset === 'custom') {
     if (oldPreset === 'standard') {
-      customSettleMs.value = 300
+      customSettleMs.value = 1000
       customSampleMs.value = 700
     } else if (oldPreset === 'fast') {
-      customSettleMs.value = 200
+      customSettleMs.value = 800
       customSampleMs.value = 500
     } else if (oldPreset === 'precise') {
-      customSettleMs.value = 400
+      customSettleMs.value = 1200
       customSampleMs.value = 1000
     }
   }
@@ -221,6 +231,7 @@ async function applyConfig() {
   await sessionStore.updateConfig({
     range_mode: rangeMode.value,
     point_count: pointCount.value,
+    repeats: repeats.value,
     settle_ms: settleMs.value,
     sample_ms: sampleMs.value,
     bidirectional: true,

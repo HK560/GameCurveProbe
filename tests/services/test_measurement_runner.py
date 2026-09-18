@@ -176,3 +176,80 @@ def test_measurement_runner_publishes_lifecycle_phases() -> None:
     assert done_events[0]["current_point"] == 1
     assert done_events[0]["total_points"] == 5
 
+
+def test_runner_early_breaks_when_repeats_consistent() -> None:
+    class ConsistentSampler(FakeSampler):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def sample_filtered(self, *args, **kwargs):
+            self.calls += 1
+            return MotionSample(
+                px_per_sec_x=100.0 if self.calls % 2 == 1 else 101.0,
+                px_per_sec_y=0.0,
+                valid_frames=10,
+                average_confidence=0.9,
+                stability_score=0.95,
+            )
+
+    sampler = ConsistentSampler()
+    runner = MeasurementRunner(
+        controller=ControllerService(StubControllerBackend()),
+        capture_factory=lambda: FakeCapture(),
+        estimator_factory=lambda: FakeEstimator(),
+        motion_sampler=sampler,
+        roi=RoiRect(0, 0, 100, 100),
+        sleep=lambda *_: None,
+    )
+    config = ProbeConfig(point_count=5, repeats=2, start_countdown_s=0, auto_wake=False)
+    result = runner.run(config, threading.Event(), lambda _: None)
+    # 5 points, each point takes 2 samples because 100 and 101 are consistent (diff <= 6%)
+    assert sampler.calls == 10
+    assert result.points[1].velocity_px_s is not None
+    assert abs(result.points[1].velocity_px_s - 100.5) <= 1.0
+
+
+def test_runner_adaptive_repeats_when_diverging_and_rejects_outlier() -> None:
+    # 1st sample: 100, 2nd sample: 50 (diverges), 3rd sample: 102 (50 is an outlier)
+    sequence = [100.0, 50.0, 102.0]
+    call_idx = 0
+
+    class SequenceSampler(FakeSampler):
+        def sample_filtered(self, *args, **kwargs):
+            nonlocal call_idx
+            val = sequence[min(call_idx, len(sequence) - 1)]
+            call_idx += 1
+            return MotionSample(
+                px_per_sec_x=val,
+                px_per_sec_y=0.0,
+                valid_frames=10,
+                average_confidence=0.9,
+                stability_score=0.95,
+            )
+
+    events: list[dict] = []
+    runner = MeasurementRunner(
+        controller=ControllerService(StubControllerBackend()),
+        capture_factory=lambda: FakeCapture(),
+        estimator_factory=lambda: FakeEstimator(),
+        motion_sampler=SequenceSampler(),
+        roi=RoiRect(0, 0, 100, 100),
+        sleep=lambda *_: None,
+    )
+    config = ProbeConfig(point_count=5, repeats=2, start_countdown_s=0, auto_wake=False)
+    # Only measure 1 point to check sequence
+    pt = runner._measure_point(
+        0.5, config, FakeCapture(), FakeEstimator(), RoiRect(0, 0, 10, 10),
+        threading.Event(), publish=lambda ev: events.append(dict(ev))
+    )
+    # 3 samples taken because first two diverged
+    assert call_idx == 3
+    # 50.0 was rejected, velocity should be close to 101.0 (mean/median of 100 and 102)
+    assert pt.velocity_px_s is not None
+    assert pt.velocity_px_s >= 99.0 and pt.velocity_px_s <= 102.0
+    # Notification sent
+    retry_msgs = [e.get("message", "") for e in events if e.get("phase") == "point_retry"]
+    assert any("检测到测速波动" in m for m in retry_msgs)
+
+

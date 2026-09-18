@@ -229,9 +229,17 @@ class MeasurementRunner:
         stabilities: list[float] = []
         total_attempts = 0
 
-        # A single transient game/capture hitch must not become a curve kink.
-        # Allow at most two extra repeats when the requested repeats disagree.
-        max_repeats = config.repeats + 2 if config.repeats >= 2 else config.repeats
+        # Determine maximum repeat limit
+        # - repeats == 1 (fast): max 1
+        # - repeats == 2 (standard dynamic adaptive): max 3 (2 if consistent, 3 if diverging)
+        # - repeats >= 3 (precision): max repeats + 2 (up to 5)
+        if config.repeats <= 1:
+            max_repeats = 1
+        elif config.repeats == 2:
+            max_repeats = 3
+        else:
+            max_repeats = config.repeats + 2
+
         for _ in range(max_repeats):
             self._check_cancel(cancel_event)
             estimator.reset()
@@ -289,12 +297,31 @@ class MeasurementRunner:
             if sample.valid_frames >= MIN_SAMPLE_VALID_FRAMES and sample.stability_score >= 0.60:
                 velocities.append(abs(sample.px_per_sec_x))
                 stabilities.append(sample.stability_score)
-            if len(velocities) >= config.repeats:
+
+            # Dynamic adaptive logic (repeats == 2)
+            if config.repeats == 2 and len(velocities) == 2:
+                v1, v2 = velocities[0], velocities[1]
+                max_v = max(v1, v2)
+                diff = abs(v1 - v2)
+                if max_v < 1.5 or (diff / max_v <= 0.06):
+                    break
+                if publish is not None:
+                    publish({
+                        "phase": "point_retry",
+                        "current_point": index,
+                        "total_points": total_points,
+                        "input_value": input_value,
+                        "message": (
+                            f"采样点 [{index}/{total_points}] 检测到测速波动 "
+                            f"({round(v1, 1)} vs {round(v2, 1)} px/s)，自动追加第 3 轮复测以剔除异常..."
+                        ),
+                    })
+            elif len(velocities) >= config.repeats:
                 if config.repeats < 3:
                     break
                 center = median(velocities)
                 mad = median([abs(value - center) for value in velocities])
-                if len(velocities) >= 3 and center > 1e-6 and mad / center <= 0.08:
+                if len(velocities) >= 3 and center > 1e-6 and mad / center <= 0.05:
                     break
 
         if not velocities:
@@ -308,7 +335,18 @@ class MeasurementRunner:
                 coverage=0.0,
             )
 
-        med_velocity = round(float(median(velocities)), 4)
+        # Outlier rejection when 3 or more samples are collected
+        filtered_velocities = list(velocities)
+        if len(filtered_velocities) >= 3:
+            center = float(median(filtered_velocities))
+            devs = [abs(v - center) for v in filtered_velocities]
+            mad = float(median(devs))
+            threshold = max(mad * 2.5, center * 0.15, 2.0)
+            cleaned = [v for v, dev in zip(filtered_velocities, devs) if dev <= threshold]
+            if len(cleaned) >= 2:
+                filtered_velocities = cleaned
+
+        med_velocity = round(float(median(filtered_velocities)), 4)
         avg_stability = round(sum(stabilities) / len(stabilities), 4)
         repeat_median = float(median(velocities))
         return MeasurementPoint(

@@ -54,7 +54,7 @@ export function createTutorialDemo(): TutorialDemo {
     capture_fps: 120,
     point_count: 17,
     repeats: 3,
-    settle_ms: 300,
+    settle_ms: 1000,
     sample_ms: 700,
     range_mode: 'active_range',
     inner_deadzone: 0.05,

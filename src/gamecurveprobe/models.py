@@ -56,7 +56,7 @@ class ProbeConfig:
     capture_fps: int = 120
     point_count: int = 17
     repeats: int = 2
-    settle_ms: int = 300
+    settle_ms: int = 1000
     sample_ms: int = 700
     range_mode: RangeMode = RangeMode.ACTIVE_RANGE
     inner_deadzone: float = 0.0

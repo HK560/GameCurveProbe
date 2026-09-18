@@ -7,7 +7,13 @@ from gamecurveprobe.models import JobState, ProbeConfig, RangeMode
 def test_standard_preset_has_approved_values() -> None:
     config = ProbeConfig.from_preset("standard")
     assert (config.point_count, config.repeats) == (17, 2)
-    assert (config.settle_ms, config.sample_ms) == (300, 700)
+    assert (config.settle_ms, config.sample_ms) == (1000, 700)
+
+
+def test_precision_preset_has_approved_values() -> None:
+    config = ProbeConfig.from_preset("precision")
+    assert (config.point_count, config.repeats) == (33, 3)
+    assert (config.settle_ms, config.sample_ms) == (1200, 1000)
 
 
 def test_full_range_includes_both_deadzone_markers() -> None:
